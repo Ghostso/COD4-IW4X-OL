@@ -1,0 +1,1 @@
+﻿Get-ChildItem -LiteralPath 'WeGame' -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '(?i)^(tgp_daemon|wegame|wegame_env|client_proxy|common|ProtocolCenter|tcls_core|.*proxy.*|.*tcls.*|.*ten.*)\.(exe|dll)$' } | Select-Object FullName,Length,LastWriteTime | Sort-Object FullName | Format-Table -AutoSize

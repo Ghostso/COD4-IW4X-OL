@@ -1,0 +1,1 @@
+E20 summary. Type 1 and 2 merge at 0x6A9978 with ebx=9; E19 separate-size claim REFUTED. Shared downstream HMAC payload object construction PROVEN. Type-code semantics BLOCKED. Bounded five-level closure contains no known game parser candidate.

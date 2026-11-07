@@ -1,0 +1,15 @@
+# Correct the 3.19 weapon exporter to read from zone+0x28 and emit the corrected field offsets.
+from pathlib import Path
+p=Path(r'D:\BaiduNetdiskDownload\使命召唤OL\CODOL_SERVER_319_20261021\tools\export_weapondefs.py')
+s=p.read_text(encoding='utf-8')
+s=s.replace('DIR_OFF,DIR_COUNT,DIR_END=0xFC24,8557,0x312F4\n', 'DIR_OFF,DIR_COUNT,DIR_END=0xFC24,8557,0x312F4\nASSET_BASE=0x28\n')
+s=s.replace('        b=d[off:off+size]; name=name_from_blob(b)\n', '        b=d[ASSET_BASE+off:ASSET_BASE+off+size]; name=name_from_blob(b)\n')
+s=s.replace("'clip_size':i32(b,0xE90),'fire_time_ms':i32(b,0xE98),", "'clip_size':i32(b,0xE68),'fire_time_ms':i32(b,0xE70),")
+s=s.replace("'reload_ms':i32(b,0x884),'reload_empty_ms':i32(b,0x890),'reload_add_ms':i32(b,0x898),", "'reload_ms':i32(b,0x85C),'reload_empty_ms':i32(b,0x868),'reload_add_ms':i32(b,0x870),")
+s=s.replace("'damage':i32(b,0xD38),'player_damage':i32(b,0xD3C),'min_damage':i32(b,0xD40),'min_player_damage':i32(b,0xD44),", "'damage':i32(b,0xD10),'player_damage':i32(b,0xD14),'min_damage':i32(b,0xD18),'min_player_damage':i32(b,0xD1C),")
+s=s.replace("'max_damage_range':f32(b,0xD50),'min_damage_range':f32(b,0xD58),", "'max_damage_range':f32(b,0xD28),'min_damage_range':f32(b,0xD30),")
+s=s.replace("'move_speed_scale':f32(b,0x9A0),'ads_move_speed_scale':f32(b,0x9A4),'sprint_duration_scale':f32(b,0x9A8),", "'move_speed_scale':f32(b,0x978),'ads_move_speed_scale':f32(b,0x97C),'sprint_duration_scale':f32(b,0x980),")
+s=s.replace("[f32(b,0xD74+4*j) for j in range(20)]", "[f32(b,0xD4C+4*j) for j in range(20)]")
+s=s.replace("'clip_size':0xE90,'fire_time_ms':0xE98,'reload_ms':0x884,'reload_empty_ms':0x890,'reload_add_ms':0x898,'damage':0xD38,'player_damage':0xD3C,'min_damage':0xD40,'min_player_damage':0xD44,'max_damage_range':0xD50,'min_damage_range':0xD58,'location_damage_multipliers':0xD74,'move_speed_scale':0x9A0,'ads_move_speed_scale':0x9A4,'sprint_duration_scale':0x9A8", "'clip_size':0xE68,'fire_time_ms':0xE70,'reload_ms':0x85C,'reload_empty_ms':0x868,'reload_add_ms':0x870,'damage':0xD10,'player_damage':0xD14,'min_damage':0xD18,'min_player_damage':0xD1C,'max_damage_range':0xD28,'min_damage_range':0xD30,'location_damage_multipliers':0xD4C,'move_speed_scale':0x978,'ads_move_speed_scale':0x97C,'sprint_duration_scale':0x980")
+p.write_text(s,encoding='utf-8')
+print('patched exporter')

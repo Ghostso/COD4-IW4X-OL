@@ -1,0 +1,44 @@
+# CODOL-BATTLE-SERVER-CLIENT-STATIC-CLOSURE-044
+
+**任务:** 客户端解码器类型域穷举 与 间接调用/函数指针关系补查(只读静态)。
+**前序:** `CODOL-BATTLE-SERVER-CLIENT-EVIDENCE-AUDIT-043`。
+**日期:** 2026-10-13 (Asia/Shanghai)
+**镜像:** `17cef6e0a5e7b8d14fb97b5fdd846061187c6a722cfa3c5d432bee37872fd045`
+        (`CODOLServer\_mainline\_dyn100_run_20260925_182324\live\image_best.bin`, 10,899,456 B)
+**性质:** 只读;未启动游戏/服务器;无动态调试/注入/hook/内存转储;未修改任何原始样本或 040-043 交付物。
+
+---
+
+## 一句话结论
+
+`0x87C110` / `0x87D5A0` 的**必达类型分支已穷举**为 `{0,1,21,22}` + 无界默认数组分支;
+但**未发现任何新增的直接或间接调用关系**(E8/E9 与 043 完全一致;绝对 dword 引用 = 0;indexed 跳表候选全部证伪)。
+`0x87ED70`/`0x87EDB0` 是**共享辅助**(取 0x400 scratch / 有界 wcslen),**不是**被两个解码器共同调用的"dispatch core"。
+**BE-01(socket/recv -> 读包原语)仍 `UNKNOWN/BLOCKED`**:读 API IAT 槽 `0x0CA84E8` 超出镜像 EOF,静态不可解析,且工作区 12 份既有镜像全部无法替代。
+
+## 判定口径
+
+`CONFIRMED`(机器码/数据直接) · `CROSS_VALIDATED`(>=2 独立证据源一致) · `INFERRED`(有据推断) ·
+`UNKNOWN`(证据不足) · `BLOCKED`(保护区/覆盖缺口)。
+
+## 交付物
+
+| 文件 | 内容 |
+|---|---|
+| `01_SAMPLE_SCOPE_AND_HASHES.md` | 样本身份、完整哈希、地址换算、检查范围 |
+| `02_DECODER_TYPE_DOMAIN.tsv` | 类型域逐条证据(字段/宽度/条件/目标/口径) |
+| `03_DECODER_CONTROL_FLOW.md` | 两个解码器 + 公共核心的控制流与类型集合 |
+| `04_INDIRECT_CALL_SCAN.tsv` | 全镜像间接 CALL/JMP 扫描(41922 条,含覆盖/算法字段) |
+| `05_FUNCTION_POINTER_CANDIDATES.tsv` | 候选函数指针表 + 证伪说明 |
+| `06_BLOCKER_REASSESSMENT.tsv` | BE-01..BE-07 逐项复核 |
+| `07_RUNTIME_EVIDENCE_NECESSITY.md` | 运行期补充证据必要性评估 |
+| `08_NEXT_ACTION_DECISION.md` | 最终决策(已择一) |
+| `09_CORRECTION_LOG.md` | 对 043 的勘误(不改写历史) |
+| `TEST_AND_VALIDATION_RESULTS.md` | 自校验 |
+| `SHA256SUMS.txt` / `FILE_HASH_MANIFEST.tsv` | 完整性校验 |
+| `evidence/` / `scripts/` | 证据与只读脚本 |
+
+## 最终决策(摘要)
+
+**停止在同一镜像内重复静态搜索;提出最小化后续证据申请**(PE 导入表 或 覆盖 `RVA 0x0CA8400..0x0CA8700` 的只读快照)。
+详见 `08_NEXT_ACTION_DECISION.md`。本任务不执行该取证,也不授权正式服务器实现。

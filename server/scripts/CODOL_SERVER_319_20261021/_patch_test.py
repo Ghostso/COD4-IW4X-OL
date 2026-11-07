@@ -1,0 +1,8 @@
+from pathlib import Path
+p=Path(r'D:\BaiduNetdiskDownload\使命召唤OL\CODOL_SERVER_319_20261021\tests\test_collision.c')
+s=p.read_text(encoding='utf-8')
+old='''    /* 4. point-solid checks */\n    CHECK(codol_collision_point_solid((float[]){0,0,-200}, CODOL_CONTENTS_SOLID), "below ground is solid");\n    CHECK(!codol_collision_point_solid((float[]){48,-572,-116}, CODOL_CONTENTS_SOLID), "spawn point is free");\n    CHECK(codol_collision_point_solid((float[]){-75,-434,-64}, CODOL_CONTENTS_PLAYERCLIP), "clip origin is solid");\n\n    /* 5. box count sanity */\n    CHECK(codol_static_box_count == 29, "29 script_brushmodel clip volumes");\n'''
+new='''    /* 4. point-solid checks */\n    CHECK(codol_collision_point_solid((float[]){0,0,-200}, CODOL_CONTENTS_SOLID), "below ground is solid");\n    CHECK(!codol_collision_point_solid((float[]){48,-572,-116}, CODOL_CONTENTS_SOLID), "spawn point is free");\n    CHECK(codol_collision_point_solid((float[]){-75,-434,-64}, CODOL_CONTENTS_PLAYERCLIP), "clip origin is solid");\n\n    /* 5. exact ClipMap bounds, not the old 64x64x64 approximation. */\n    CHECK(codol_collision_point_solid((float[]){-824,-96,-57}, CODOL_CONTENTS_PLAYERCLIP),\n          "brush *71 centre is solid");\n    CHECK(!codol_collision_point_solid((float[]){-840,-96,-57}, CODOL_CONTENTS_PLAYERCLIP),\n          "brush *71 x half-extent is 8, not 32");\n    CHECK(!codol_collision_point_solid((float[]){-75,-460,-64}, CODOL_CONTENTS_PLAYERCLIP),\n          "brush *79 y half-extent is 4, not 32");\n\n    /* 6. box count sanity */\n    CHECK(codol_static_box_count == 29, "29 script_brushmodel clip volumes");\n'''
+if old not in s: raise SystemExit('test block not found')
+p.write_text(s.replace(old,new),encoding='utf-8')
+print('patched test_collision.c')

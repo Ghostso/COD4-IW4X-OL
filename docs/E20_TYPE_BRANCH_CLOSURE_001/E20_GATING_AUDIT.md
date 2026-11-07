@@ -1,0 +1,1 @@
+E20 gating audit. Through: client frame reader 0x6ABBC0 and state machine 0x6ABE80. Not through: type-code semantics, game session attribution, real-time Gamestate 0x03 consumer. E20 corrects E19 branch interpretation; server interoperability remains NOT-OBSERVED.

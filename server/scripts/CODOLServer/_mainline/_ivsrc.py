@@ -1,0 +1,21 @@
+import sys, importlib.util
+spec=importlib.util.spec_from_file_location("lp", r"CODOLServer\lobby_server\lobby_plain_probe.py")
+lp=importlib.util.module_from_spec(spec); sys.modules["lp"]=lp; spec.loader.exec_module(lp)
+iv_client = bytes.fromhex("29c364872bb6dfa882a97d93c2cb5437")
+rx = bytes.fromhex("94659269ee445d537ed275d9be8cb9e4d15c131c")
+tx = bytes.fromhex("ebf70379c9a503c36f0bb089f526b023e2035d3f")
+print("client frame[10:26] (IV?) =", iv_client.hex())
+print()
+print("compare with candidate sources:")
+print("  rx[0:16]      =", rx[:16].hex())
+print("  rx[4:20]      =", rx[4:20].hex())
+print("  tx[0:16]      =", tx[:16].hex())
+print("  tx[4:20]      =", tx[4:20].hex())
+print("  c02a0(rx)[0:16]=", lp.codec_02a0(rx)[:16].hex())
+print("  c02a0(rx)[4:20]=", lp.codec_02a0(rx)[4:20].hex())
+print("  c0420(tx)[0:16]=", lp.codec_0420(tx)[:16].hex())
+print("  c0420(tx)[4:20]=", lp.codec_0420(tx)[4:20].hex())
+print()
+print("IV equals any? ", iv_client.hex() in [rx[:16].hex(), rx[4:20].hex(), tx[:16].hex(), tx[4:20].hex(),
+      lp.codec_02a0(rx)[:16].hex(), lp.codec_02a0(rx)[4:20].hex(),
+      lp.codec_0420(tx)[:16].hex(), lp.codec_0420(tx)[4:20].hex()])

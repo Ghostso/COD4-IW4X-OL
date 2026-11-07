@@ -1,0 +1,39 @@
+# 交付包索引 — CODOL Demonware 证据包（2026-10-12）
+
+## 1. 内容清单
+
+| 目录 | 内容 | 来源 |
+|---|---|---|
+| `00_CONSOLIDATED_QUESTION_REGISTER.md` | 统一问题登记簿 Q-01…Q-111（含权重/评分/状态/证据/历史变更） | XVAL-02 账本 + E-21…E-27 + 两份项目登记簿增量，逐项重建 |
+| `00_REGISTER_SOURCE_XVAL02_QUESTION_REGISTER_MIGRATION.csv` | 登记簿权威源账本（Q-01…Q-43） | XVAL-02 |
+| `00_REGISTER_I4_RECONCILIATION_NOTE.md` | I4 口径差异说明（Q-44 归属，如实记录） | 本轮重建 |
+| `02_E26_...` | E-26 服务端握手对端交叉表（报告 + SHA256SUMS + `_data` 证据） | E26 任务目录 |
+| `03_E27_...` | E-27 Demonware 服务端对端发现（报告 + SHA256SUMS + `_data` 证据） | E27 任务目录 |
+| `04_CLIENT-DEMONWARE-PEER-REUSE-AUDIT-001` | 对端复用性验证（01–07 + SHA256SUMS + `_data`） | 本项目 |
+| `05_CLIENT-DEMONWARE-CODEC-KEYFLOW-001` | Codec → 密钥装载数据流闭合（01–07 + SHA256SUMS + `_data`） | 本项目 |
+| `06_SUMMARY_INDEX/01_LAUNCH_AND_BOOTSTRAP` | 启动/自举/恢复链汇总 | CODOLLauncher、RESTORE-*、restore003 |
+| `06_SUMMARY_INDEX/02_LOBBY_REPRODUCTION` | 大厅复现与 0x85 发送路径，含 DEV-BOOKING 预约/匹配/战斗规范 11 篇 | DEV-REPRO、CODOLServer、DEV-BOOKING |
+| `06_SUMMARY_INDEX/03_CONFIGSTRING_GAMESTATE` | configstrings / gamestate 子帧系列判定 | E-08…E-14、知识图谱 07 |
+| `06_SUMMARY_INDEX/04_SERVER_PACKET_RECV_SEND` | 服务端收包/发包与 2697 协议路径汇总 | E-13、E-25、2697 静态分析 |
+| `SHA256SUMS_BUNDLE.txt` | 本包全部 93 个文件的 SHA-256 | 本轮生成 |
+
+## 2. 结论索引（截至本包时点）
+
+| 主题 | 状态 | 出处 |
+|---|---|---|
+| 2697 服务端生态含 Demonware | **REFUTED**（4 PE / 12,511 文件 0 命中） | E-27 |
+| Demonware 对端存在（工作区，面向 1.1.1.13/3.3.3.3） | PROVEN | E-27 |
+| 2697 客户端 Demonware 密码学参数（SHA-1/HMAC/expandKey/标签/切分） | PROVEN | PEER-REUSE-AUDIT-001 |
+| 帧格式 `u32len｜AB｜85｜seq｜iv16｜AES-128-CBC｜HMAC-SHA1[:8]` | PROVEN | PEER-REUSE-AUDIT-001 |
+| 客户端 codec 层改变最终消费密钥 | **REFUTED**（STORE/LOAD 同掩码 = 恒等） | CODEC-KEYFLOW-001 |
+| `K_client,consumed = K_reference,derived` | **PROVEN（静态 bit-exact）** | CODEC-KEYFLOW-001 |
+| 复用性判定 | **REUSE-PARTIAL → 建议 REUSE-SUPPORTED（仅静态）** | CODEC-KEYFLOW-001 §5 |
+| 实时互操作 | **NOT-OBSERVED（未变）** | 全链 |
+| `.tvm0` 完整 VM 语义 | **BLOCKED**（交集检查 0 命中，未做整段还原） | CODEC-KEYFLOW-001 §5 |
+
+## 3. 使用限制
+
+- 本包全部材料为**静态只读审计**产物；**未启动客户端/服务端/模拟器**，未注入、未读取运行时内存、未连接线上服务。
+- `NOT-OBSERVED` 表示**未做实时互操作验证**；`REUSE-SUPPORTED` 仅指静态证据支持复用，**不等于互操作成功**。
+- 认知完备率（55.28%）**不等于**互通完成率，分母/权重/时点见登记簿 §1。
+- 历史 `REFUTED` 条目原文全部保留，更正以增量方式记录。

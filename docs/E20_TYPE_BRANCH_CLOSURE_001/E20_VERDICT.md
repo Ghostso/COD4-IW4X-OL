@@ -1,0 +1,1 @@
+E20 final verdict. Type 1 and 2 merge at 0x6A9978 with ebx=9. E19 separate-size claim REFUTED. HMAC object construction PROVEN. Type-code semantics BLOCKED. No game parser candidate in bounded closure. Server interoperability NOT-OBSERVED.

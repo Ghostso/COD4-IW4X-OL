@@ -1,0 +1,143 @@
+# -*- coding: utf-8 -*-
+import sys,os
+sys.stdout.reconfigure(encoding="utf-8")
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+def W(n,s): open(n,"w",encoding="utf-8",newline="\n").write(s); print("wrote",n,len(s))
+
+W("09_NEXT_ACTION_DECISION.md", r"""# 09_NEXT_ACTION_DECISION
+
+**任务:** CODOL-BATTLE-SERVER-CLIENT-PARSER-SEMANTICS-046。
+**日期:** 2026-10-13 (Asia/Shanghai)。
+**性质:** 只读静态取证。本任务**不**启动实现、**不**申请运行期样本、**不**做动态调试/注入/hook。
+
+---
+
+## 1. 最终回答(任务书要求的问题)
+
+> **当前证据是否足以开始实现 CODOL 战斗服的核心协议?**
+>
+> ### **不足以。**
+>
+> 理由:本轮**否证**了 045 把 `0x85D96E→0x87BA50→0x87D5A0` 当作游戏业务解析入口的推断
+> (该链整体属 TQOS 平台层,TDR 通用解包),同时**未**在现有恢复映像内定位到**任何一个**
+> 游戏网络消息解析器或业务消费者(gamestate / configstrings / snapshot / opcode / reliable commands)。
+> 移动物理资料提供的是**项目侧**(非官方)实现与实验证据,不能作为官方线格式依据。
+
+> **最先需要解决的一个阻塞问题是什么,为什么?**
+>
+> ### **阻塞:** 在官方客户端里**定位并证实"游戏网络接收 → 游戏状态消费者"的实际数据流**
+> (即 P7 游戏协议区的输入缓冲来源)。
+>
+> **为什么是它:**
+> 1. 其余 A 类问题(opcode / gamestate / configstrings / snapshot / reliable)都**依赖**这条链:
+>    没有接收点,就无法把 opcode 值、字段编号、编码宽度绑定到官方字节。
+> 2. 本任务已把候选范围**从"整张映像"缩小到"游戏协议串区 + 两条无串 socket 簇(P4/P5)"**,
+>    使该问题**首次成为可执行的静态任务**(而非 `BLOCKED`)。
+> 3. 这是唯一一个**能纯静态推进、无需新样本**的 A 类核心阻塞。
+
+---
+
+## 2. 本轮净产出
+
+| 项 | 结果 |
+|---|---|
+| 045 链归属 | **`CONFIRMED_PLATFORM_PATH`**(TQOS/TDR);042 的 CoD-netfield 归因被推翻 |
+| 关键 decoder 语义 | `0x87C110`/`0x87D5A0` = TDR net-buffer 解包;`0x87ED70`=scratch;`0x87EDB0`=bounded wcslen;`0x879AC0`=TDR 长度前缀写入 |
+| 移动资料交叉验证 | usercmd/snapshot/PlayerState 字段级矩阵(§04),证据等级逐条标注 |
+| 六方矩阵 | 更新 P02/P08/P09/P10,新增 12 条移动维度 |
+| A 类闭环率 | A: 10→**17**/79(21.5%);五项关键项仍 **0%** |
+| 新发现 | 游戏协议串区(`0x0005x–0x00376x`)与 TQOS 群**无交叉引用**;至少 3 组独立 socket 实现 |
+| 需要的补充样本 | **不需要**(本轮所有结论均在既有映像内取得) |
+
+---
+
+## 3. 下一步推荐(按优先级,全部**纯静态**)
+
+### N1(最高优先):定位游戏 netchan 收包点
+
+- 目标:判定 **P4(`0x8653xx–0x866xxx`)** 与 **P5(`0x8768xx–0x877xxx`)** 中哪一个是 in-match netchan。
+- 方法:
+  1. 对 P4/P5 的收包函数做**上游调用者 BFS**(E8 rel32);
+  2. 追入参:buffer/len 的来源、socket 对象的构造者;
+  3. 检查其解码下游是否写入 `playerstate/gamestate/configstring` 结构(已知低地址区结构)。
+- 判据:必须给出**直接数据流**(共享缓冲/调用链),不接受"结构相似"。
+
+### N2:在游戏协议串区定位读取点
+
+- 目标:对 `gamestateupdate %d`(`0x54B7B`,`0x73214`)、`EXE_CONFIGSTRINGMISMATCH`(`0x731E1`,`0xF2833`)、
+  `EXE_LOSTRELIABLECOMMANDS`(`0xF2737`,`0x376B14`)、`connectResponse`(`0x1C17B5`)反查**读取/分派点**。
+- 方法:定位这些串的**调用者函数**,再找其输入缓冲来源;与 N1 的结果交叉。
+- 判据:`读 opcode → 分支 → handler` 的可复核指令链。
+
+### N3:绑定 opcode 表
+
+- 仅在 N2 成功且有分派表后执行;不得先假设 opcode 编号。
+
+### N4(离线,不占用实跑):补全 demo 解码
+
+- 移动资料 §7-A 建议:按已量出的宽度表补全 `demo_parse.py`,解出 demo 中多玩家逐帧 `origin+viewangles`。
+- **限制:** 这是**项目侧工具链**工作,产出为 `DIRECT_ARTIFACT_EVIDENCE`,**不**解决官方线格式问题。
+
+---
+
+## 4. 本任务明确不做(禁止越界)
+
+- ❌ 不开始 CODOL 战斗服核心协议实现。
+- ❌ 不申请/不采集运行期内存镜像(本轮问题不需要)。
+- ❌ 不动态调试、注入、hook、运行时内存读取。
+- ❌ 不启动游戏 / 客户端 / 战斗服。
+- ❌ 不修改原始客户端、原始战斗服、进入大厅基线、040–045 交付物、正式服务器源码。
+- ❌ 不用服务端(OLD/2697/OLMod/CoD4x/IW4x)实现反推客户端协议。
+- ❌ 不把"未找到调用者"写成"不存在该功能"(本文已声明地址空间)。
+
+---
+
+## 5. 后置建议(仅写入计划,不在本任务执行)
+
+若 N1/N2 在既有映像内推进受阻,可考虑的**最小补充证据**(须另行授权):
+
+| 备选 | 内容 | 成本 |
+|---|---|---|
+| E-A | 覆盖第3节区(`VA 0x0E5C9000..`,现 `RSize=0x62000` 之外)的只读快照 | 中 |
+| E-B | 与工程预期构建 `E3823FD6..F37B` 匹配的样本(A-07) | 工程裁决 |
+| E-C | 带符号/PDB 的官方构建 | 高(通常不可得) |
+
+**本任务不申请上述任何一项。**
+
+---
+
+## 6. 勘误登记录(编号 046-C*,不改写 040–045 历史)
+
+### 046-C1(高). 042/045 把 `0x87C110/0x87D5A0` 归为 "CoD netfield/delta" → **推翻**
+
+- 原文:042 `04_NET_BUFFER_READER.md`;045 `05_PROTOCOL_EVIDENCE_MATRIX.tsv` P08/P09。
+- 实测:两函数引用 `lib_src\tdr\tdr_net.c`(`RVA 0x99F060`)与整套 TDR net-buffer 诊断;
+  调用者 4/4(+1)全在 TQOS `0x85Dxxx`。→ 腾讯 **TDR**,非 CoD netfield。
+- 证据:`evidence/a14_tdr_strings.txt`、`a13_callgraph.txt`。
+
+### 046-C2(高). 045 的"接收→解码"边被当作游戏业务入口 → **收窄为平台内部边**
+
+- 045 原文(`02 §4`):"闭合了 `socket → select+recv → 长度 → 0x87D5A0`"。
+- 实测:该链上层是 `tqos_create_protohandle`(`0x85EB50`),函数唯一字符串为 `udp://%s:%d`;
+  `0x87D5A0` 是 TDR 通用解包器。→ **平台层内部**边,不构成游戏业务入口。
+- 证据:`evidence/a10_chain_function.txt`、`a11_tqos_strings.txt`、`a12_tqos_factory.txt`。
+
+### 046-C3(中). 042 的"诊断串相邻"被用作协议归因
+
+- 042 以 `0x99EE98..` net-buffer 串与 `0x87C110/0x87D5A0` 相邻为据。
+- 实查:这些串来自 **TDR** (`lib_src\tdr\tdr_net.c`),归因方向应相反。→ 相邻不是协议证据。
+
+### 046-C4(低). 045 `P02`"`0x87BE00` 网络传输"(客户端)表述
+
+- `0x87BE00` 本身是**通用 socket 原语**(select+recv);把它列在"客户端网络传输"正确,
+  但**不**应读作"游戏业务收包点"。本任务在 `06` M10 显式区分。
+
+---
+
+## 7. 与 040–045 的一致性
+
+- 040–045 文件**一字未改**;
+- 043 `10_CORRECTION_LOG.md`、044 `09_CORRECTION_LOG.md`、045 `08_NEXT_ACTION_DECISION.md` **保留**;
+- 本任务勘误续记为 `046-C*`,不覆盖历史。
+""")
+print("DONE")

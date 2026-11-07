@@ -1,0 +1,1 @@
+E20 evidence register. EV-E20-01 branch bytes 0x6A9969 PROVEN. EV-E20-02 merge 0x6A9978 PROVEN. EV-E20-03 HMAC vtable VA 0xC5B0A4 RVA 0x85B0A4 .rdata PROVEN. EV-E20-04 second object ctor 0x6A9720 PROVEN. EV-E20-05 bounded no-game-hits REFUTED. EV-E20-06 sample hashes PROVEN.

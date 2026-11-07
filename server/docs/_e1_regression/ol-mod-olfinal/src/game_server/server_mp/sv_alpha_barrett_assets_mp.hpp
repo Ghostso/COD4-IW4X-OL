@@ -1,0 +1,139 @@
+#pragma once
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>
+#include <map>
+#include <optional>
+#include <span>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace CodolGameServer
+{
+    struct SvAlphaBarrettSkeleton
+    {
+        std::vector<std::string> boneNames;
+        std::vector<std::byte> parentList;
+        std::vector<std::byte> quaternions;
+        std::vector<std::byte> translations;
+        std::vector<std::byte> partClassification;
+        std::vector<std::byte> baseMatrices;
+    };
+
+    struct SvAlphaBarrettTexture
+    {
+        std::array<std::byte, 8> slotHeader{};
+        std::string image;
+    };
+
+    struct SvAlphaBarrettImage
+    {
+        std::string name;
+        std::string sourceName;
+        std::array<std::byte, 32> alphaHeader{};
+        std::array<std::byte, 16> alphaLoadDef{};
+    };
+
+    struct SvAlphaBarrettMaterial
+    {
+        std::string name;
+        std::string cloneSource;
+        std::uint32_t alphaTechniquePointer{};
+        std::array<std::byte, 96> alphaHeader{};
+        std::vector<SvAlphaBarrettTexture> textures;
+        std::vector<std::byte> constants;
+        std::vector<std::byte> stateBits;
+    };
+
+    struct SvAlphaBarrettModel
+    {
+        std::string name;
+        std::string kind;
+        std::string skeletonKey;
+        std::vector<std::string> materials;
+        std::array<std::byte, 360> header{};
+        std::vector<std::string> resources;
+        std::vector<std::byte> boneInfo;
+    };
+
+    struct SvAlphaBarrettAnimation
+    {
+        std::string name;
+        std::string sourceName;
+        std::array<std::byte, 88> header{};
+        std::array<bool, 10> pointerPresence{};
+        std::vector<std::string> boneNames;
+        std::vector<std::string> notifyNames;
+        std::vector<std::byte> notify;
+        std::vector<std::byte> dataByte;
+        std::vector<std::byte> dataShort;
+        std::vector<std::byte> dataInt;
+        std::vector<std::byte> randomDataShort;
+        std::vector<std::byte> randomDataByte;
+        std::vector<std::byte> randomDataInt;
+        std::vector<std::byte> indices;
+    };
+
+    struct SvAlphaBarrettBundle
+    {
+        std::array<std::array<std::string, 4>, 4> modelTable{};
+        std::map<std::string, SvAlphaBarrettSkeleton, std::less<>> skeletons;
+        std::vector<std::string> images;
+        std::vector<SvAlphaBarrettImage> imageMetadata;
+        std::vector<std::string> retainedImages;
+        std::vector<SvAlphaBarrettMaterial> materials;
+        std::vector<std::string> retainedMaterials;
+        std::vector<SvAlphaBarrettModel> models;
+        std::vector<SvAlphaBarrettAnimation> animations;
+    };
+
+    inline constexpr std::size_t AlphaBarrettOlfinalGfxImageSize = 52;
+    inline constexpr std::size_t AlphaBarrettOlfinalMaterialSize = 104;
+
+    // Exact four-row alpha mp/coWeapModels/barrett_mp.csv payload. CODOL's
+    // modular weapon builder resolves columns 2 and 3 as the third-person and
+    // first-person XModels; the first two columns form the weapon/skin key.
+    [[nodiscard]] std::span<const std::array<std::string_view, 4>>
+        SV_AlphaBarrettModelTable() noexcept;
+
+    // Translates the process-independent alpha image fields into an inert
+    // OLfinal GfxImage. The caller supplies stable 32-bit addresses for the
+    // retained load definition and name; OLfinal's renderer then owns the
+    // runtime fields at +0x10..+0x2F.
+    [[nodiscard]] bool SV_BuildOlfinalAlphaBarrettImage(
+        const SvAlphaBarrettImage &source,
+        std::uint32_t loadDefAddress,
+        std::uint32_t nameAddress,
+        std::array<std::byte, AlphaBarrettOlfinalGfxImageSize> &header,
+        std::array<std::byte, 16> &loadDef) noexcept;
+
+    // Converts the measured alpha Material scalars while retaining the
+    // renderer-owned fields and technique set from a category-compatible
+    // OLfinal material. All supplied addresses must remain stable after link.
+    [[nodiscard]] bool SV_BuildOlfinalAlphaBarrettMaterial(
+        const SvAlphaBarrettMaterial &source,
+        std::span<const std::byte, AlphaBarrettOlfinalMaterialSize> finalTemplate,
+        std::uint32_t nameAddress,
+        std::uint32_t textureTableAddress,
+        std::uint32_t constantTableAddress,
+        std::uint32_t stateBitsTableAddress,
+        std::array<std::byte, AlphaBarrettOlfinalMaterialSize> &header) noexcept;
+
+    // A retained OLfinal technique set may only be paired with alpha tables
+    // when every technique-routing scalar is identical. A mismatch makes the
+    // renderer search beyond the retained technique's argument table.
+    [[nodiscard]] bool SV_OlfinalAlphaBarrettMaterialLayoutCompatible(
+        const SvAlphaBarrettMaterial &source,
+        std::span<const std::byte, AlphaBarrettOlfinalMaterialSize> finalTemplate) noexcept;
+
+    // Parses only the reusable metadata generated by
+    // Tools/olfinal/extract-alpha-barrett-bundle.py. Mesh and IWI bytes stay in
+    // the separately hashed loose overlay and never enter this object.
+    [[nodiscard]] std::optional<SvAlphaBarrettBundle>
+        SV_LoadAlphaBarrettBundle(
+            const std::filesystem::path &path,
+            std::string &error) noexcept;
+}

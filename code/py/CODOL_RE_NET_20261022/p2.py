@@ -1,0 +1,1 @@
+\"import struct\" ; echo \"d=open('run_codol_001/runs/OMIT_RETEST_20261022/mem/mem_005.bin','rb').read()\" ; echo \"B=0x400000\" ; echo \"gs=(0x762EFB8,0x762EFBC,0x762EFC0,0x762EFC4,0x762EFCC,0x762EFD0)\" ; echo \"print([hex(struct.unpack('<I',d[g-B:g-B+4])[0]) for g in gs])\" ; python CODOL_RE_NET_20261022\p2.py

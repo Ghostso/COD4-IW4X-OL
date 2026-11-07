@@ -1,0 +1,122 @@
+# CODOL 服务器线格式（从本地 GDPOpenProtocol.tdr 提取）
+
+日期：2026-09-25
+来源：`COD OL\GDPOpenProtocol.tdr`（438,856 B，magic `0x000B02D6`）
+方法：解析 `{name_ptr, enum, next_ptr, flag}` 描述符表，名称池 612 项
+
+## 1. 包结构（顶层）
+
+```text
+GDPPkg      = GDPPkgHead + GDPPkgBody
+
+GDPPkgHead  = Version
+              CmdID
+              CmdType
+              headlen
+              bodylen
+              SubCmdId
+
+GDPPkgBody  = 按游戏分支选择：
+              GDPCFMainCmdPkg / GDPDNFMainCmdPkg / GDPBNSMainCmdPkg
+              GDPLOLMainCmdPkg / GDPCODOLMainCmdPkg / GDPTGameMainCmdPkg
+              GDPLCUMainCmdPkg / GDPMS2MainCmdPkg
+```
+
+CODOL 走 `GDPCODOLMainCmdPkg`：
+
+```text
+GDPCODOLMainCmdPkg      = TGDPCODOLMainCmdHead + GDPCODOLMainCmdBody
+TGDPCODOLMainCmdHead    = Version + SubCmd + BodyLen
+GDPCODOLMainCmdBody     = TGDPCODOLCmd
+```
+
+## 2. 命令类型枚举
+
+```text
+GDP_CMDTYPE_NOTIFY
+GDP_CMDTYPE_TIMEOUT
+GDP_CMDTYPE_REQUEST
+GDP_CMDTYPE_RESPONSE
+```
+
+## 3. 顶层 CmdID
+
+```text
+GDP_CMD_TDR_HELLO       握手
+GDP_CMD_CODOL_COMMAND   CODOL 命令容器
+GDP_CMD_CF_COMMAND / DNF / BNS / LOL / TGAME / LCU / MS2
+```
+
+## 4. 常量
+
+```text
+GDP_PROTOCOL_VERSION
+GDP_PKG_MAX_BODY_LEN
+GDP_PKG_MAX_PKG_LEN
+TDR_PACKAGE_DATA_LEN
+TDR_PACKAGE_HELLO_DATA_LEN
+MAX_SERVER_RET_ERROR_DESC
+GDP_RET_OK
+GDP_RET_ERROR_UNKNOWN
+GDP_RET_ERROR_NOT_INITIALIZED
+```
+
+## 5. 命令码表（GDP_CF_*，共 80 条）
+
+```text
+0x0000 REQ_CFRSAVEEVENT
+0x0001 REQ_SYNC_GETWEAPIDINGAME
+0x0002 LEAVEBATTLE_HALFWAY
+0x0005 GAMEMODE_DEFAULT
+0x001E SEND_SUCCESS
+0x00FF MAX_CMD
+0x025D..0x025F ARCHIEVE_NONE / ACE / MVP
+0x0260 MIN_CMD
+0x0261 NOTIFY_C4_INSTALLED
+0x026C/0x026D REQ/RES_GET_VOLUME
+0x0278 NOTIFY_SERVER_ENTERED
+0x027A NOTIFY_BATTLE_LOADING_STARTED
+0x0282 RES_PING
+0x0283/0x0284 REQ/RES_FPS
+0x0287/0x0288 REQ/RES_LEAVESERVER
+0x0289/0x028A REQ/RES_ENTERCHANNEL
+0x028B/0x028C REQ/RES_LEAVECHANNEL
+0x028D/0x028E REQ/RES_CREATEROOM
+0x0295 RES_SET_READY_STATUS
+0x0296 REQ_JOIN_MATCH
+0x0299/0x029A REQ/RES_SET_VOTING_PROHIBITION
+0x029B REQ_QUERY_UINS_IN_ROOM
+0x029D NOTIFY_ROOMRULE_CHANGED
+0x02A5/0x02A6 REQ/RES_START_MATCH
+0x02A7 NOTIFY_MAPLOADINGPROGRESS
+0x02AC NOTIFY_ROOMOWNERCHANGED
+0x02AD NOTIFY_ROOM_LEAVED
+0x02AF NOTIFY_LOBBY_LEAVED
+0x02B2 REQ_SEND_DATA
+0x02BE REQ_QUERY_CURRENT_UI
+0x030E NOTIFY_LOGIN
+0x030F NOTIFY_CREATE_ROOM
+0x0314 REQ_SYNC_CLIENT_EVENT
+0x1000 RES_SYNC_GETWEAPIDINGAME
+```
+
+完整表：`CODOLServer\GDP_CMD_MAP.csv`
+
+## 6. 与其它层的边界
+
+```text
+GDP 层     游戏内 → 平台服务（房间/频道/匹配/战局），本文档
+TCLS 层    账号 → 目录/版本服务（gic_cs.tdr, mmog_data.tdr）
+TACC 层    账号数据（tacc_client_protocol.tdr, tacc_datadef.tdr）
+Cross 层   区域登录 / TQoS 上报（plat_proto.tdr）
+QM 层      腾讯电脑管家遥测（components\tclsqmfix），与游戏无关
+```
+
+## 7. 待解析（下一阶段）
+
+```text
+GDPPkgHead 各字段位宽与字节序
+TGDPCODOLMainCmdHead 的 Version/SubCmd/BodyLen 位宽
+GDP_CF_REQ_ENTERCHANNEL / JOIN_MATCH / START_MATCH 的 body 字段
+GDP_CF_NOTIFY_GAMESERVERPORTINFO 的实际命令码与字段
+```

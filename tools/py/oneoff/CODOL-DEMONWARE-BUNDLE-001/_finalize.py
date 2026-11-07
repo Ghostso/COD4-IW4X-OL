@@ -1,0 +1,50 @@
+# -*- coding: utf-8 -*-
+import os, hashlib
+STAGE = r"D:\BaiduNetdiskDownload\使命召唤OL\CODOL-DEMONWARE-EVIDENCE-BUNDLE-20261012"
+note = """# 说明：统一登记簿的 I4 口径差异（如实记录，不静默取舍）
+
+本包内的 `00_CONSOLIDATED_QUESTION_REGISTER.md` 由**权威来源逐项重建**：
+Q-01…Q-43 取 `XVAL02_QUESTION_REGISTER_MIGRATION.csv`，Q-44…Q-111 取 E-21…E-27 与
+`CLIENT-DEMONWARE-PEER-REUSE-AUDIT-001`、`CLIENT-DEMONWARE-CODEC-KEYFLOW-001` 的登记簿增量。
+
+重建后出现一处**与报告链不一致**，如实记录如下：
+
+| 项 | 报告链（KEYFLOW-001 §3） | 本包逐项重建 | 差额 |
+|---|---:|---:|---:|
+| 总权重 | 634 | **634** | 0 |
+| 加权得分 | 350.5 | **350.5** | 0 |
+| 总完备率 | 55.28% | **55.28%** | 0 |
+| I4 权重 | 368 | **376** | **+8** |
+| I4 得分 | 217.6 | **217.6** | 0 |
+| I4 完备率 | 59.13% | **57.87%** | **-1.26pt** |
+
+**差额来源（单一、可定位）**：E-21 的 **Q-44**（I4 / 权重 8 / 得分 0）。
+- E-21 将其计入（206+8=214）；
+- E-22 沿用 214；
+- **E-23 回退到"权威 XVAL-02 账本 206"作为基线**，随后只加了 Q-45…Q-48，**Q-44 自此未被计入任何后续分母**。
+- 逐项重建时 Q-44 仍然存在于 E-21 增量中，故 I4 分母比报告链多 8。
+
+**处理方式**：本包**不修改任何历史条目**，也不改写报告链数值。上表并列两个口径：
+- 报告链口径（排除 Q-44）：I4 = 368 / 217.6 / **59.13%** —— 各轮增量报告使用；
+- 全量逐项口径（含 Q-44）：I4 = 376 / 217.6 / **57.87%** —— 本包重建表使用。
+
+两口径**总权重、总得分、总完备率完全一致**（634 / 350.5 / 55.28%），差异仅在 I4 子集。
+建议后续轮次在开工基线核对时明确裁定 Q-44 的归属，并把裁定结果登记为新条目，而非回改历史。
+
+> 该差异**不影响** `REUSE-PARTIAL → REUSE-SUPPORTED（静态）` 的判定，也不改变 `NOT-OBSERVED`。
+"""
+open(os.path.join(STAGE,"00_REGISTER_I4_RECONCILIATION_NOTE.md"),"w",encoding="utf-8").write(note)
+
+# manifest of bundle contents
+lines=[]
+for dp,dn,fn in os.walk(STAGE):
+    for f in sorted(fn):
+        p=os.path.join(dp,f)
+        rel=os.path.relpath(p,STAGE).replace("\\","/")
+        if rel=="SHA256SUMS_BUNDLE.txt": continue
+        lines.append((rel, hashlib.sha256(open(p,"rb").read()).hexdigest(), os.path.getsize(p)))
+lines.sort()
+with open(os.path.join(STAGE,"SHA256SUMS_BUNDLE.txt"),"w",encoding="utf-8") as fh:
+    for rel,h,s in lines:
+        fh.write("%s  %s\n"%(h,rel))
+print("bundle files:",len(lines),"total bytes:",sum(s for _,_,s in lines))

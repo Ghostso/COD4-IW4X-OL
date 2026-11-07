@@ -1,0 +1,25 @@
+-- zm_factory_sh -- the zombies map this server is being brought up on.
+--
+-- NO minimap_material, and that is MEASURED rather than an omission. All three retail
+-- zm_factory_sh captures in `zombie demos\` carry no compass configstring whatsoever,
+-- while the retail dm gamestate does (`2555 "compass_map_mp_cross_fire" 8288 1280 640
+-- -6368`). Zombies maps do not use the MP compass. out.exe agrees: its only
+-- compass_map_* string is `compass_map_awareness_radar` @ 0xDB1D0C -- the per-map
+-- materials live in fastfiles, and there is no zombies one to name.
+--
+-- The table itself IS required even though it is empty. SV_LoadMapScriptMetadata must
+-- return a value, because Appmain.cpp fails session configuration outright when
+-- `mapScriptExists != mapMetadata.has_value()`. An empty table satisfies that; a script
+-- that returns nothing, or no script at all, does not.
+--
+-- KNOWN CONSEQUENCE, NOT AN OVERSIGHT: Appmain.cpp only reads the map entity string
+-- inside `if (mapMetadata && mapMetadata->miniMapMaterial)`, so leaving this nil also
+-- skips spawn-point loading, and the session then dies on
+-- `initial_spawn_ground_trace` / `NO_SPAWN_POINT`. That coupling is an MP-only
+-- assumption -- a compass and a spawn list have nothing to do with each other -- and
+-- decoupling them is what zombies needs from the engine side. Do NOT "fix" this by
+-- inventing a material name here; that would trade a clean failure for a wrong one.
+--
+-- Retail spawn origin for this map, from the demos and byte-identical across all three:
+--     -73.000000 -54.000000 8.000000
+return {}

@@ -1,0 +1,13 @@
+import sys, importlib.util
+spec=importlib.util.spec_from_file_location("lp", r"CODOLServer\lobby_server\lobby_plain_probe.py")
+lp=importlib.util.module_from_spec(spec); sys.modules["lp"]=lp; spec.loader.exec_module(lp)
+rx = bytes.fromhex("496fc8b9ed4b932f2c8f1e26b58bfc9f60659e68")
+d = lp.codec_02a0(rx)
+print("rx620                =", rx.hex())
+print("codec_02A0(rx620)    =", d.hex())
+print("  [4:20]             =", d[4:20].hex())
+print("  [0:16]             =", d[:16].hex())
+print()
+print("observed p608 @38.08 = 19697d2fbe51d08c9221e06be075bf5f")
+print("  == [4:20] ?", d[4:20].hex()=="19697d2fbe51d08c9221e06be075bf5f")
+print("  == [0:16] ?", d[:16].hex()=="19697d2fbe51d08c9221e06be075bf5f")

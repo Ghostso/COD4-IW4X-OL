@@ -1,0 +1,1 @@
+E20 acceptance: 11 formal deliverables. SHA manifest covers all 11. Missing=0, mismatches=0. Frozen samples rechecked and unchanged. Interoperability NOT-OBSERVED.

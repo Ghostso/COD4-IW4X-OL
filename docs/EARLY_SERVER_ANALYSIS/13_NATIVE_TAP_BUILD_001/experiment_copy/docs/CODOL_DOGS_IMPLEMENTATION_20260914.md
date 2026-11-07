@@ -1,0 +1,654 @@
+# Native dogs implementation, 2026-09-14
+
+Status: reference audit and staged combat component. Not integrated, built, or
+verified in C1. Dogs killstreak is not yet supported by this increment.
+
+## Existing facilities and missing producers
+
+`codol_sentient.cpp::Sentient_ConfigureActor` allocates an actor/sentient slot,
+model, team, health and collision. Its comment correctly states that it does not
+run AI. It currently uses player bounds. Calling it alone cannot implement dogs.
+
+`codol_actor_state.cpp` publishes composition model/parts and archives those
+records with matching entity snapshots. Animation and other actor fields remain
+zero. These omissions require native implementation, not fake script models or
+client hooks.
+
+C1 `42A670` resolves type 18 actors through their entity-state byte at centity
+`+13c`, into a `29c` byte composition record at cg `+168514`. Type 20 corpses use
+the separate corpse composition pool. C1 `428B40` constructs the actor DObj:
+
+- `428BA6` reads centity `+13d` as a selector into five composition tree pointers
+  at `+18`.
+- `428BAD` reads centity `+1b8` and compares/copies this into composition `+2c`.
+- `428C3C` resolves the base model string from composition `+234`.
+- `428D1D` creates the DObj using the selected tree and assembled models.
+- `450189..4501C8` visits all 32 composition records and all five tree pointers
+  when clearing animation state.
+
+These are measured consumer locations, not yet fully named fields. No T5 tree
+index or offset has been copied into them. The missing tree-pointer constructor
+and entity-state animation producer must be established before deploying dogs.
+
+A further concrete publication gap: repository search finds `actorSlot`
+consumers only in the sentient registry and actor composition producer.
+`Sentient_ConfigureActor` neither sets actor entity type nor publishes its actor
+slot in the entity state. C1 composition selection therefore also needs a native
+actor entity overlay: current centity state begins at `+e4`, so the measured
+`+13c/+13d` reads address state bytes `+58/+59`. This is subtraction within the
+same verified C1 representation, not an IW3/T5 offset equivalence. Publishing a
+type alone is insufficient until the animation tree constructor is implemented.
+
+## Available assets and references
+
+The cached `common_gametype_mp.zone` string inventory includes the
+`german_sheperd_dog` model, German shepherd idle/walk/run/start/stop/turn/attack/
+death/traversal animations, `dog_bite`, and dog audio/effects. Core dog assets do
+not justify loading unrelated extra zones. Inventory saved in
+`obj/dog-asset-string-inventory.json`; string presence alone is not a validated
+native asset import.
+
+IW4 source in alpha0022 provides `animtrees/dog.atr`,
+`aitype/enemy_dog.gsc`, and `animscripts/dog`. The enemy dog aitype selects
+`dog.atr`, model through `character_sp_german_sheperd_dog`, 200 health, and
+`dog_bite`. Its combat script handles attack notetracks and interruption, rather
+than applying damage from a distance timer.
+
+OpenBLOPS provides actual native behavior in
+`Game/Server/game/actor_dog_exposed.cpp` and animation handling in
+`Game/Shared/bgame/bg_dog.cpp`. Full dog AI depends on actor navigation,
+movement, animation and damage lifecycle; these are not supplied by an actor
+composition record alone.
+
+## Staged source
+
+`obj/dogs-stage/codol_dog_combat.c/.h` implements the T5 attack-goal component:
+
+- Predict moving player position by 0.25 seconds; expand attack buffer from
+  melee range +15 to +30 for a moving player.
+- Enforce 80-unit maximum vertical attack separation.
+- Rank four cardinal attack positions toward the approaching dog.
+- Compete with current slot occupiers by distance, using native entity
+  generations to reject stale/recycled entities.
+- Check attack-position occupancy, approach obstruction and ground support
+  with native capsule traces; use T5 90-unit drop and attack hull.
+- Enforce the attack-position approach cone (`dot > 0.707`) before attacking.
+- Release claims on target change/free and reset them on level initialization
+  through explicit lifecycle entry points.
+
+The module intentionally has no fake spawn, timer damage or unsupported GSC
+registration. Caller integration must invoke claim release on target changes,
+death/free and reset on level changes. It does not replace collision/path-based
+movement or animation-notetrack damage. It remains outside the build globs
+while the parent builds other changes.
+
+Next implementation dependencies: real actor movement over the available
+navigation graph with collision; C1 actor tree/animation serialization;
+animation completion/notetrack lifecycle; dog health/death and owner/team
+attribution; staged killstreak dispatch and cleanup GSC. No live scripts were
+changed.
+
+## Native type and identity increment staged
+
+`obj/dogs-stage/native-entity-types.patch` stages ten files, generated by
+`stage_native_entity_types.py`. It changes native entity categories to C1:
+vehicle spawner 17, actor 18, actor spawner 19, actor corpse 20, events 21.
+The retained temp-event producer, type-name diagnostic, diagnostic entity
+filter, archive category table and native C1 serializer agree on the new
+boundary. Event **payload IDs** retain their separately measured mapping; this
+increment only migrates entity categories.
+
+`LerpEntityStateActor` adds named actor slot/tree fields to the native union
+without changing its size. The existing anonymous words archive both fields;
+the C1 overlay packs them into state `+58` as slot | tree<<8. The seed no longer
+rejects native actors. No live-entity lookup or actor-only type translation is
+introduced. Actor spawn/movement/animation callers remain to be wired, so this
+patch does not make dogs callable by itself. It is staged for parent review,
+not applied or built.
+
+## Dog tree enable path established
+
+C1 `465C08..465C27` parses serverinfo key `2482` into cgs `+164`.
+`450AF8..450B04` copies that value to bgs `+921F8` before animation loading.
+`408456` tests each bit while registering five actor trees. Tree selector 1,
+mask value 2, selects `dog` (`C3F090`). `408377..408393` loads
+`common_dog` and clears bit 2 if the list fails. This is a normal server-fed
+initialization path, requiring no client modification.
+
+Native `sv_main.c` already captures `codol_animlistMask` with
+`CODOL_SetServerAnimListFlags` and passes the same mask to
+`CODOL_LoadClientAnimTrees`; `codol_sv_state.c` already publishes key 2482.
+Use that shared loader rather than add a second registration order. Mask must
+be selected before client map initialization, not toggled when the streak fires.
+
+Animation correctness distinction: actor record `38/3c/40` controls the
+root-motion record at centity `+1f8` through `440E20 -> 440FD0`. Nonzero values
+are not established as a stand-alone animation-play command. Player legs/torso
+fields `d8/dc` are likewise not actor animation selectors. Actual actor
+animation-command dispatch is established below; native animation producers
+and their integration remain required.
+
+### Actual animation-command executor traced
+
+C1 `46AFF0` processes the snapshot command list (`snapshot+3380` count,
+first record at `3384`, stride `2c`). It tracks applied records with snapshot
+bits at `e384`; gates commands against cg time, global last command time and
+per-entity last command time; then resolves the entity's DObj. At
+`46B120..46B131` it validates the command reference against the selected
+DObj tree's entry count. `46B1A1` calls the actual executor `443E90`.
+
+Executor table `444140` maps types 1..6 to `443F1D`, `443F35`, `443F4D`,
+`443FED`, `44408F`, `444126`. Type 3 invokes `63C520`, or `63C730` when
+arg2 bit 0 is set; type 4 invokes `63BBE0`/`63B8B0`. The reference is an
+actual tree index, not a model/configstring index. Rate, blend and weight
+are passed from record `1c/24/20`. Type 6 sets animation time via `63C310`.
+
+Queue integration must preserve snapshot/archive and delivery lifecycle.
+The comparisons at `46B09F` and `46B0CD` accept equal timestamps; therefore
+the initial partial trace alone was insufficient to establish duplicate handling.
+
+The remainder of the executor establishes it: `46B202..46B233` increments
+each matching per-entity consumed timestamp by one after the entire batch.
+`46B23B..46B23E` increments the global timestamp when a command was processed.
+The next snapshot's identical timestamps are consequently older than those
+watermarks and rejected. Multiple commands with one timestamp in a single batch
+remain valid. Immutable retransmissions are supported; restamping commands to
+each new frame's time would bypass this protection and replay them.
+
+## Animation delivery journal staged
+
+`obj/dogs-stage/codol_actor_anim_journal.c/.h` implements the bounded native
+delivery/archive component. It is not activated; no producer or frame callback
+is registered yet.
+
+- Atomic same-time command batches are validated before insertion. The journal
+  retains 65,536 immutable events, each with native actor incarnation identity.
+- A world-time cut seals the producer phase. Appending later commands at or
+  before a sealed time fails, preventing commands from arriving after C1 has
+  incremented that time's watermark.
+- 1,200 archive cut records retain frame identity, source time, map epoch and
+  journal position. Overwritten frames/history are rejected explicitly.
+- Each recipient retains 32 published snapshot cut tokens. An acknowledged
+  token advances the delivered range; building a pending snapshot does not.
+  `Published` is called only after successful full snapshot serialization.
+- A first join or replay timeline change requires an explicit native tree
+  bootstrap captured at that cut. The journal freezes it until acknowledged.
+  A missing bootstrap is refused, not replaced with invented animation state.
+- Source-world times survive packet retries and archived playback. The caller
+  supplies a new timeline identity when rewinding or entering/leaving replay.
+- A required captured-visibility callback filters entity incarnations; it must
+  use the corresponding historical state, never a recycled live entity slot.
+- Commands are capped at C1's measured 1,024 per snapshot (`487272`). Allocation,
+  history loss and capacity failures preserve unsent delivery state.
+
+Remaining integration is explicit: native XAnim goal-state bootstrap producer,
+incarnation/visibility capture alongside the actor archive, producer calls,
+matching snapshot copy and success notification. An actor newly entering a
+recipient's visible set needs a current-time goal-state transaction from the
+animation owner; a discarded old command cannot bypass C1's global watermark.
+The journal is a real transport component, not a claim that this remaining
+actor animation behavior exists.
+
+Source review only; no compilation, automated tests, runtime writes, UI actions
+or native restarts were performed for this increment.
+
+Additional type-migration audit: native archived event category 66 was
+`17 + EV_CUSTOM_EXPLODE (49)`, now expressed as
+`ET_EVENTS + EV_CUSTOM_EXPLODE` in the staged `sv_snapshot.c` change. The separate
+C++ `G_GetEntityTypeName` table also needed the vehicle-spawner entry before
+actor 18. Objective counts, attachment counts and unrelated assembly constants
+were reviewed separately and not changed merely for matching 0x11.
+
+Parent reports the expanded ten-file category migration was reviewed and applied.
+The combat and animation journal modules remain staged only. The journal's
+public semantic records explicitly preserve eight-byte packing regardless of
+retained engine-header packing. Boundary review covered map epoch invalidation,
+sealing against late same-time producers, archive overwrite refusal, failed
+capture invalidation, and acknowledgement selection by exact sequence/timeline.
+
+## Native animation owner and bootstrap increment
+
+Staged `obj/dogs-stage/codol_dog_animation.c/.h` supplies callable native
+`CODOL_DogAnimGoal`, `CODOL_DogAnimCapture`, and `CODOL_DogAnimBootstrap`.
+Goal operations validate the selected native tree index, append the immutable
+command, then call actual `XAnimSetGoalWeight` or `XAnimSetCompleteGoalWeight`.
+Journal refusal leaves the tree unchanged. Notification-bearing and knob
+operations are outside this owner's current API, rather than silently ignored.
+
+Capture traverses the real native tree's `g_xAnimInfo` links in parent-first
+order. Native `_xanim.asm` defines a 0x38000-byte pool of 4096 56-byte entries;
+the implementation checks this executable's declared structure size and state
+offsets. It stores actual current/goal weights, remaining blend, playback rate
+and leaf phase without retaining tree pointers. Bounds, cycles, parent links,
+duplicate refs and nonrepresentable values fail capture explicitly. Duplicate
+restart branches require further representation; they are not flattened.
+
+Bootstrap clears the old tree and reconstructs captured parent/node weights,
+remaining transitions and leaf times using C1 commands 1, 3 and 6. It restores
+the root as well as children. Direct goal operations preserve captured ancestor
+weights; complete-goal operations would change them. The inherent wire phase,
+weight, rate and blend quantization still applies. This is source written,
+not evidence of equivalent rendered animation or a completed dog AI lifecycle.
+
+The trace also found a real semantic naming error in the shared codec. Parser
+`5A1264 -> 5A10E0 -> 5A1269` stores the first encoded float at record+1c;
+`5A1278 -> 5A1060 -> 5A127D` stores the last at +20. Executor `443FCF`
+passes +1c as goal weight into `63C520`, which forwards to `63BD80`;
+`63BDDF..63BDE6` stores that value as XAnimInfo current weight. +20 is playback
+rate. Parent corrected shared fields to `goal_weight`/`playback_rate`, preserving
+the measured codec branch order. Staged modules now use those names, and the
+journal has C++ linkage guards and rejects visibility callback values other
+than exactly 0 or 1.
+
+### Replay clock adapter evidence
+
+`46B1B1..46B1C9` advances the global/per-entity watermark after each accepted
+record, so multiple timestamps in one snapshot must be nondecreasing. The
+journal's serial order satisfies this; its final one-time increment still
+rejects retransmitted timestamps.
+
+Killcam entry `46BEE7..46BEF2` and exit `46BF2F..46BF3A` clear 0x800 dwords
+starting at cg+AE348. That range includes global watermark B0344 (slot2047),
+not only per-entity records. `46B155..46B15B` adds snapshot playerstate+a50
+to the original command time for DObj advancement. Native
+`SV_GetArchivedClientInfo` already adds archive displacement to `deltaTime`.
+Therefore the archive adapter must preserve source-world command timestamps,
+provide the matching archived pose/cut, and publish the captured deltaTime.
+The current frame builder memcpy and normal command writer preserve the raw
+timestamps; the writer's current server_time only chooses compact versus full
+timestamp encoding. An extra command-time rebase would double-add displacement
+to the DObj clock. This does not establish arbitrary demo-rewind reset behavior.
+
+Remaining integration: dog animation state selection and real XAnim ticking,
+archive ownership of captured poses/incarnations, per-recipient visibility
+transitions, and snapshot bindings/success callbacks. None is activated by
+these staged modules. No builds, tests, client changes or server restarts.
+
+## Subsequent staged lifecycle increment
+
+`codol_dog_animation` now owns 1200 immutable archived pose slots keyed by
+exact frame/time. Replacing a slot captures every actor atomically; failure
+invalidates that replacement rather than returning an older pose under its key.
+Each pose retains its entity generation, all native branch parent indices,
+sync-root/loop flags and internal as well as leaf phase. Entity destruction
+cannot change the copied pose. Reset frees all allocations at map teardown.
+
+Native ticking was already present: `G_RunFrame_50` calls DObjInitServerTime for
+all in-use entities; `G_RunFrame_520/550` performs the real DObj update and drains
+script notifications. Dog integration must select goals before this phase and
+capture poses afterwards, not add a second independent tick. Parent corrected
+the discovered return-value ABI in the shared DObj update wrapper.
+
+Goal result handling is now grounded: `_xanim` SetGoalWeightNode_50 returns0
+when notifyName==0. Its2-return path requires nonzero notify lookup on an invalid
+sync descendant. The owner only permits notification-free operations and checks
+that invariant. A batch API atomically journals clear/goal/complete-goal/time
+commands before applying the corresponding real native XAnim calls.
+
+Cloned refs are no longer discarded or blanket-refused by capture. Staged
+bootstrap visits same-ref siblings oldest first and emits native restart
+operations to insert each newer branch, restoring current weights, pending goals,
+children and phases. Native XAnimCloneInitTime inserts before same-ref siblings;
+XAnimRestart retains the old branch fading to zero, and promotes restarts to
+the nearest sync root. C1 `63C380` follows that promotion; `63C310` accepts
+internal node times as well as leaf times. The reconstruction is source written,
+not yet verified against all C1 clone cases: old child fade durations, nested
+restarted sync groups and phase quantization require further review. A loop at
+quantized phase0 uses pose-equivalent phase1 for the nonzero restart predicate;
+a nonloop branch that cannot satisfy that predicate is still refused explicitly.
+This limitation is not counted as complete actor bootstrap support.
+
+New `obj/dogs-stage/codol_dog_locomotion.c/.h` binds named entries in the actual
+constructed server `dog` tree through CODOL_FindAnimInServerTree. It does not
+copy T5's numeric indices. Its callable update consumes native path intent
+(idle/walk/run), lean and playback rate and drives atomic native transitions.
+Run center/left/right weights follow IW4 dog_move::getRunAnimWeights, corroborated
+by OpenBLOPS BG_Dog_GetRunAnimWeights; idle/walk/run blend and clear decisions
+follow dog_move/dog_stop. Binding verifies leaf versus group entries. Generation,
+tree identity and monotonic time checks protect freed/recycled actor state.
+
+This is a locomotion animation owner, not a complete AI state machine. Native
+navigation intent production, run starts/stops and traversal, combat/pain/death
+animation ownership, notetrack-driven damage and selected snapshot integration
+remain. All new dog modules remain staged outside build globs. No tests/builds
+or changes to the user's running client/lobby.
+
+## T5-first continuation — 2026-09-15
+
+User clarified Black Ops killstreaks should use OpenBLOPS native and T5 GSC
+as the primary behavior reference. IW4 dog scripts are now secondary leads;
+the C1 tree remains the authority for asset identity and wire representation.
+
+Added staged `codol_dog_look.c/.h`, implementing OpenBLOPS
+`BG_Dog_Look_At`, `BG_Dog_Init_Normal_Look_At`, and
+`BG_Dog_Init_Attack_Look_At` from `bg_dog_animations_mp.cpp`.
+The callable owner binds all four look groups and eight normal/attack leaves
+by name in the actual native dog tree and verifies parent/leaf relationships.
+Mode transitions clear the four groups, select the appropriate leaves at
+weight1 immediately, and drive the four additive group weights with .05s blend.
+Positive vertical selects up; positive horizontal selects left, exactly T5.
+Mode off clears all four groups. Inputs must be finite normalized aim channels;
+the owner does not invent AI target direction. Generation, tree, time and mode
+validation occurs before any mutation. Commands append atomically to the staged
+journal and call the real native XAnim owner. No copied T5 numeric indices.
+
+Integration contract: apply look after body goals and before the existing DObj
+tick. A body/root clear must pass resetLayers=1 even if look mode is unchanged;
+otherwise the selected leaf weights would remain cleared. Multiple components
+may append the same timestamp before its journal cut. Frame integration must
+handle failure, then capture the final pose only after shared animation ticking.
+
+T5 comparison also identified remaining differences in the earlier locomotion
+component: T5 run leaves use complete-goal operations without per-transition
+restart; the run parent uses complete-goal **knob**, and walk think explicitly
+clears the run group with .3s blend. Run/walk transitions avoid some root clears
+used by the IW4-derived staged component. These differences are not silently
+treated as verified T5 behavior. The native C1 executor supports knob dispatch:
+type3 arg2 bit0 calls63C730 at443F94; type4 bit0 calls63B8B0 at444035.
+The current staged owner rejects that bit, so a verified complete-knob native
+operation and its lifecycle must be implemented before claiming T5 run parity.
+No complete-knob substitute or fake completion notification was activated.
+
+The new look component does not complete dogs: AI/path selection, notetrack
+damage, start/stop/attack/pain/death state progression, snapshot bindings and
+clone-bootstrap edge cases remain. Source written and manually reviewed for
+named bindings, array capacity (maximum12 commands), atomic publication and
+lifecycle guards; no build, tests or live activation.
+
+### Staged complete-knob and T5 locomotion correction
+
+Added `obj/dogs-stage/codol_xanim_complete_knob.asm`. This is new native retained
+assembly, not a hook or client patch. Its notification-free cdecl API is
+`CODOL_XAnimSetCompleteGoalWeightKnob(obj, ref, weight, blend, rate, restart)`.
+The existing native `XAnimSetGoalWeightKnob` owns node allocation, actual restart
+cloning, sibling fade calculation and selected-node goal assignment. The new
+function then resolves the selected native info with `XAnimGetInfoIndex_r` and
+follows its **actual info parent links**, activating only ancestors whose goal
+weight is zero. The loop matches retained `XAnimSetCompleteGoalWeight`, using
+`XAnimSetGoalWeightNode` through its measured native register ABI. It does not
+look ancestors up by shared animation reference or apply the selected goal twice.
+
+Native ownership/ABI: DObj first member is tree; tree children at+4;
+`XAnimInfo` is56bytes, parent+0e and state.goalWeight+28, independently asserted
+by the existing staged native capture owner. Node setter receives tree inEAX,
+info inEDX, notifyName0 inECX, weight/blend/rate inXMM0/1/2, notifyType0 onstack.
+The helper preserves cdecl callee-saved registers. Missing post-allocation info
+or nonzero notification-free result is a fatal invariant in its caller rather
+than a false successful journal entry.
+
+C1 `63B8B0` performs restart/allocation, sibling-knob clearing via63B2C0, then
+selected/ancestor completion via63B3C0. OpenBLOPS
+`XAnimSetCompleteGoalWeightKnob` in Engine/Animation/xanim/xanim.cpp follows that
+same sequence. C1's measured sibling clear has no T5 additive-class filter;
+the native retained knob matches C1 here. T5's numeric actor state/anim refs and
+its additional cmdIndex parameter are not imported into the native ABI.
+
+Staged `CODOL_DogAnimApplyBatch` now accepts goal/complete-goal arg2 bit0 (knob),
+bit1 (restart), rejecting these flags on clear/time commands. It still validates
+and journals the whole batch before mutation. Existing non-knob operations keep
+their native calls; unsupported notification producers remain explicit work.
+
+Staged locomotion now sends complete-goal run/left/right leaves without restart,
+then a complete-goal knob on the run parent, all with T5 .2s blending. Removed
+the IW4-derived .1s initial lean blend and run-child restart. Walk think clears
+the run group .3s and repeats T5's complete walk goal/restart; initial walk uses
+the separate entry behavior. Ordinary run/walk transitions no longer clear the
+root. Start/stop leaf clears occur for entry from outside that pair. Idle entry
+follows T5 Stop_Init/Stop_Idle root/idle/attack-group clears and goal; stable idle
+has no invented per-frame reactivation. Named start leaf binding was added.
+
+This component still represents only idle/walk/run: full turn/traverse ownership,
+T5 done notifications and actor state transitions must be integrated separately.
+Look owner runs after body goals, with resetLayers on root/knob clears that can
+invalidate selected additive leaves. Neither helper nor locomotion advances time:
+the existing G_RunFrame DObj update remains the **only tick**, followed by archive
+capture/cut. No new native source activated, no build/tests/restarts. Parent
+review required, including assembly ABI and clone ownership behavior.
+
+## Server notetrack and combat/death body-goal increment
+
+Staged `codol_dog_animation.c/.h` now exposes
+`CODOL_DogAnimApplyNotifiedLeafBatch`. The earlier owner always passed
+notifyName0, so its real server DObj tick could never send authored attack
+notetracks or animation completion to a dog controller. The new entry point
+keeps the existing atomic command journal, then supplies an interned server
+notification channel to the final goal command. It accepts only actual leaf
+goals, excluding the retained internal sync-node error path and knob operations.
+It verifies the live entity incarnation, actual server DObj identity and its
+entnum=entity+1 notification receiver. Publication refusal releases the temporary
+string reference and leaves the tree unchanged. Successful XAnim goal assignment
+owns its own string reference. The wire remains ordinary C1 goal commands;
+server script handles and notification channels never enter that protocol.
+
+Retained `_xanim.asm::XAnimProcessServerNotify` verifies DObj entnum and the
+XAnimInfo notifyName. At `_80` it pushes the actual authored notetrack string and
+calls Scr_NotifyNum(entnum-1, class0, notifyName, argumentCount1). At `_140` it
+passes g_endNotetrackName on that same channel. Thus listeners receive
+`entity notify(channel, notetrack)`, including the real end marker. These are
+generated by the existing single DObj tick, not clip-length timers or client
+commands. Native notifyType0 uses that server path; T5's client-side notifyType2
+is not copied into the server ABI. `_xanim::XAnimSetGoalWeightNode_50` returns0
+for an actual leaf; unsupported internal sync notifications remain excluded.
+
+New staged `codol_dog_action_animation.c/.h` supplies T5 body-goal transactions
+for running/close-range/missed attacks and four directional deaths. It binds
+each requested clip by its exact name in the constructed C1 dog tree, validates
+leaf identity, clears root goals, then restarts a complete leaf goal at weight1
+with .2s blending and the caller's playback rate. Root clear is .1s for close
+and missed attacks, .2s for running attacks and deaths, matching OpenBLOPS
+`BG_Dog_Combat_Attack_*` and `BG_Dog_Death_*` in bg_dog_animations_mp.cpp.
+Miss-normal-look initialization remains with the existing look owner, invoked
+after body goals. No T5 numeric tree index, random death selector or inferred
+damage timestamp is used.
+
+This increment does not activate dogs. Native AI must still select a target,
+build/follow a collision-aware route, choose the action, install and cancel its
+per-action notification listener, handle bite/synced melee and actual death,
+and release target claims on death/free. The action API is a transition producer,
+not a per-frame call; repeating it would restart the animation. Snapshot/journal
+cut/ack and actor lifecycle bindings, corpse ownership, root-motion movement and
+bootstrap limitations above also remain. No native AI frame callback, GSC reward
+handler or gameplay damage was fabricated. All new source stays in dogs-stage;
+source reviewed manually, no builds/tests/process changes, parent review pending.
+
+### Original T5 MP script reuse inventory
+
+Original scripts are now saved unchanged under `obj/dogs-stage/reference` from
+[Black-Ops-1-GSC-Raw-Dump](https://github.com/AtomicLizard99/Black-Ops-1-GSC-Raw-Dump),
+revision `efdb7fab75331a8ee032c7432f92185faa5191e6`. The manifest records SHA256
+for all14 files: common and patch `_dogs.gsc`, nine MP dog animation scripts,
+shared/utility animation scripts, and Firing Range enemy_dog_mp aitype. Prefer
+the actual patch lifecycle and MP animation scripts over a bespoke replacement.
+Do not activate raw copies until dependencies and C1 assets are supplied.
+
+Concrete interfaces from those originals:
+
+- `_dogs::dog_manager_spawn_dog` calls the real actor spawner, force teleport,
+  goal-node setter and initialization. The manager returns without spawning
+  when the map lacks `dog_spawner`; silently creating generic entities is not
+  equivalent to supplying a real C1 actor spawner/path facility.
+- Initialization sets actor team/species, health, goal radius, melee distance,
+  AI weapon, models and path behavior fields. Existing sentient allocation does
+  not implement those dynamic actor fields or their native AI consumers.
+- MP `dog_combat::meleeBiteAttackPlayer` is already a GSC function. It selects
+  native animation states and waits for real notetrack callbacks; there is no
+  reason to replace that lifecycle with timer-driven native bite damage.
+- MP `shared::DoNoteTracks` waits for `(channel,note)`, dispatches authored notes
+  and terminates on `end`/`finish`. The staged native notification channel matches
+  this shape; the existing engine's end notetrack supplies completion.
+- MP `dog_death` unlinks, clears a matching synced-melee target, selects
+  `death_` plus damage direction, sets gravity animation mode and waits on done.
+  It needs real setanimstate, animMode and actor death/corpse ownership.
+
+Current native registry search finds no implementation/registration for
+spawnactor, setgoalnode, setanimstate, animMode, SetAimAnimWeights or setEnemyModel.
+The staged body-goal/notetrack producers provide part of setanimstate's future
+implementation; they are not a full method registration or complete state map.
+Native navigation/AI, actor fields and synced melee remain implementation work.
+
+## C1 actor spawner identity increment — 2026-09-15
+
+Reconciled current source: native ET_ACTOR/ET_ACTOR_SPAWNER/ET_ACTOR_CORPSE are already present; old native-entity-types.patch must not be reapplied. Current CODOL_Sentient_SpawnActorEntity still configures every actor_ classname as a generic linked damageable sentient. It ignores spawnflag1, allocates actor publication slots for templates, and cannot supply an authentic receiver to T5 spawnactor.
+
+Staged actor-spawner-identity.patch (only codol_sentient.cpp) fixes that concrete prerequisite before allocation. C1 original SP_actor6C4B50 tests spawnflag1 at6C4B74 and dispatches6F1280. Spawner initialization clears model, clipmask and contents, sets no-client flag1 and ET_ACTOR_SPAWNER19; native item timestamp fields become -1/0. Omitted count defaults1; explicitly authored count0 remains0. The latter is verified by6F12B3..6F1334 scanning literal count (C46A94). T5 actor_spawner.cpp SP_actor_spawner confirms the same native named fields, while C1 adds the count handling. No C1 entity offsets copied into retained gentity.
+
+A spawner now remains a template: no collision body, health activation, linked sentient, actor composition slot, or turret target is created. The existing non-spawner branch is untouched. This patch is staged/source-reviewed only; no builds/tests/restarts. Parent review required. It does NOT claim spawnactor/AI/dogs support.
+
+Further verified ownership work:
+
+- C1 Actor_Alloc6C4F80 scans exactly32 slots, checks current actor count against its cvar limit, clears0x1B10 actor records and claims an occupancy byte. SP_actor then allocates a sentient; on failure it rolls back actor count/inuse/occupancy and frees the entity (6C4BEF..6C4C39). Current generic registry is not this actor owner and allows unpublished waiting actors; do not treat that as complete allocation.
+- C1 actor Bounds constantsC30A40..54 are midpoint(0,0,36), halfsize(15,15,36), requiring native mins(-15,-15,0)/maxs(15,15,72). OpenBLOPS T5 maxheight48 is a different layout/behavior. Do not copy its vector fields directly. C1 clipmask2820015/contents4000 also need native collision semantic verification before changing actor bodies.
+- Original T5 spawnactor first validates actor-spawner receiver, reads optional noEnemyInfo and targetname, then duplicates native and script entity fields, allocates/initializes actor+sentient, updates sight/threat, starts anim script, notifies spawned and decrements positive count. No original GSC function should be registered as successful until those consumers exist.
+
+Offline evidence: c1-actor-entry.txt, c1-6f1280.txt, c1-6c4f80.txt. Actual actor owner, AI/path and animation-script initialization remain unfinished; no inert fake dog returned to script.
+
+### Actor owner stage parked for splash investigation
+
+New codol_actor_lifecycle.cpp/.h stage owns32 actor identities paired atomically with native sentients, uses entity useCount and registered handle validation, executes a supplied preloaded aitype main through real Scr_ExecEntThread/Scr_FreeThread, revalidates after script, and admits actual server DObj tree capture only after explicit initialization. Archive helper feeds the existing staged real-pose capture; teardown releases dog target claims and identity before sentient slot reuse. actor-lifetime-hooks.patch wires free/reset only; not applied. No fabricated spawnactor success or native AI frame callback. This is an unfinished integration component, not ready for deployment: actor body initializer, original AI/animscript dispatcher, preload registration, state fields/goal navigation, and calling these APIs from real spawn remain required. No builds/tests.
+
+### Native actor animation-script execution owner (staged 2026-09-15)
+
+`codol_actor_lifecycle.cpp/.h` now executes a complete supplied original T5
+animation-script table rather than just the aitype main. The init script is
+separate from the replaceable stop/move/combat/death/pain/flashed/turn/jump
+thread, matching OpenBLOPS Actor_InitAnimScript and Actor_SetAnimScript.
+
+The native transition retains the actual VM thread reference; same-function
+movement changes notify `movemode` rather than restarting animation GSC. A new
+function cancels `killanimscript`, processes pending threads at the previous
+script time, starts the replacement entity thread, and restores script time.
+The API refuses use from a nested script invocation or nonempty VM stack.
+Revalidation after script and notifications checks the entity incarnation.
+Free drops the held thread reference after clearing ownership; level reset
+raw-clears ownership at the same epoch as the sentient pool. The shared frame
+remains responsible for the existing single DObj tick.
+
+Actual producer/consumer provided: a native AI state selection calls
+CODOL_ActorSwitchScript with a bound function; it runs original GSC, whose
+killanimscript/movemode listeners now have the corresponding native producer.
+CODOL_ActorInitScripts runs the original init setup and its background children.
+All script handles must be loaded during the map script-load phase and supplied
+as one complete table; zero handles are rejected rather than treated as support.
+
+This is not complete Actor_SetAnimScript parity: orientation overrides, claimed
+nodes and per-actor AI fields still require representation and consumers. It is
+also not a functioning spawnactor, because there is no native AI state caller,
+path-following/body initialization, full GSC actor fields, complete setanimstate
+mapping, or preload integration yet. Do not register an inert success in their
+place. No live source changes/builds/tests/restarts. Parent review required.
+
+### Original dog script preload connected to staged lifecycle
+
+Added `obj/dogs-stage/codol_actor_scripts.cpp/.h`. Map-load code can now load a
+specific authored actor classname into a bounded native type registry. It resolves
+that exact `aitype/<classname suffix>` main/precache/spawner and all nine original
+MP dog animation entrypoints. It commits no partially valid type and rejects a
+missing function instead of substituting another actor. Compilation belongs before
+Scr_EndLoadScripts; runtime spawning performs no script load or file access.
+
+Precache executes the original aitype precache once per loaded type. Spawner
+initialization runs its original spawner function on an actual ET_ACTOR_SPAWNER.
+Actor initialization now resolves its loaded classname, executes original aitype
+main and connects directly to CODOL_ActorInitScripts. Entity incarnation is checked
+after script execution. The registry resets with script loading, so handles cannot
+carry across map epochs. These are real VM entrypoint producers; caller integration
+still needs the map's actor-type walk and level precache phase.
+
+Field audit found the next concrete integration issue: retained
+_g_spawn_mp.asm Scr_GetObjectField/Scr_SetObjectField interprets the 0xc000 field
+namespace exclusively as client fields and returns no value for nonclients.
+Native actor fields cannot just be added to the script dictionary: team/type,
+enemy, movement mode and related fields need actor-aware dispatch and native
+consumers. Actor type main writes team/type before dog_init, so that dispatch must
+precede enabling these original scripts. No success-returning spawnactor added.
+
+State: staged source only, no builds/live changes. Parent must review new preload
+module together with lifecycle stage, not copy the module into an active build
+without the actor field and map-phase callsites.
+
+### Native actor fields and actual map-load callsites staged
+
+`actor-fields-dispatch.patch` changes retained assembly dispatch for class0 and
+field namespace0x8000 only. Existing entity fields and client0xc000 routing remain
+unchanged. Native `team` and `type` registration uses that namespace. An actor team
+write updates its real sentient record, which native targeting/class masks already
+consume. Type accepts the implemented dog species and gates dog script init;
+C1's actual resolved tree selector is deliberately separate from T5's species0.
+Non-actor writes return0 for the VM's dynamic-field fallback. Reads on an actor
+return its native values. These two fields are implemented, not a declaration of
+all dog actor fields; enemy/goal/perception/movement configuration still needs
+native representation and corresponding AI consumers.
+
+`actor-script-load-callsites.patch` connects reset after Scr_BeginLoadScripts,
+field registration and map-type loading before Scr_EndLoadScripts, and aitype
+precache before G_SpawnEntitiesFromString. The map walk uses a private cursor into
+CM_EntityString, and loads the supplied original actor_enemy_dog_mp type only.
+Other species are not guessed from a substring or replaced by dogs. Missing
+required dog scripts produce a load error instead of a silently inert actor.
+
+New original T5 aitype initialization can now obtain native team/type semantics
+when the staged actor owner is used. The existing generic actor map-spawn path
+has not been misrepresented as a complete native AI allocation path. Precache and
+field callsites are ready for parent source review, but should be integrated
+with the remaining actor lifecycle, methods and supplied original script assets.
+No live source changes, build, automated tests or process mutations performed.
+
+### Goal/enemy and authored movement consumer stage
+
+Actor fields now include read-only `enemy`, plus `goalradius` and `goalheight`.
+T5 actor_fields.cpp makes enemy read-only; native CODOL_ActorSetEnemy owns its
+entity/generation identity, releases old attack claims and rejects invalid,
+friendly or untargetable targets. Stale/dead targets clear on read. Goal sizes
+validate finite/nonnegative values and clamp to T5 native minima4/80. They are
+consumed by actual goal-volume reach evaluation, not stored-only dummy fields.
+
+Native `setgoalnode` is registered and validates a real class2 node via the new
+staged CODOL_PathNodeOrigin reader. The native goal retains node identity and
+position, resets route state and emits the original `goal` notification once on
+reaching its current volume. It does not pretend the node's script target strings
+are native BSP navigation links.
+
+The route consumer uses the existing authored CSV graph, with actor capsule
+checks for endpoint connection and every traversed edge. Crouch/prone/climb links
+are excluded until corresponding dog traversal exists. Blocked/no-route returns
+failure, never teleport success. This is a CoDOL CSV adaptation; not a claim that
+T5 uses CSV internally. Existing bot graph must actually be loaded for this map.
+
+The staged AI_ANIM_MOVE_CODE consumer calls retained XAnimCalcDelta on the actual
+DObj and uses horizontal root-translation distance, matching OpenBLOPS
+Actor_UpdateAnglesAndDelta. It follows the computed route and applies the real
+actor capsule sweep, G_SetOrigin, sentient origin update and SV_LinkEntity.
+One-time-per-frame guard prevents consuming the same animation delta twice. A
+collision invalidates the route. No guessed running speed or bite timer.
+
+This is a useful native goal-driven root-motion slice, not complete dog AI:
+full sliding/step-up/gravity/traversal, enemy perception/threat selection, shared
+frame-phase invocation, orientation, dog setanimstate and spawn body setup remain
+required. The map's bot waypoint graph must be loaded separately. No inert
+spawnactor has been exposed. Source staged and inspected only; no builds/tests
+or live source/process changes. Parent review required.
+
+### Actor physics and real entity-frame dispatch staged
+
+Added codol_actor_physics.cpp/.h: capsule sweeps, multiple collision-plane clipping,
+gravity, ground detection, and comparing stepped/unstepped horizontal progress.
+Native gravity is supplied from g_gravity. Exposed T5 dogs set prone, so the
+verified actor_physics step height is10 rather than human18. Standing/no-route
+actors still receive gravity. The normal shared DObj update supplies root motion;
+physics does not start a second animation tick or fabricate a running speed.
+
+actor-frame-dispatch.patch connects G_RunFrameForEntity's actual ET_ACTOR path to
+CODOL_ActorRunFrame for initialized owned actors. It selects original move/stop
+scripts from goal progress and the original death script on actual dead health,
+then runs the authored root displacement through native collision physics.
+Uninitialized/generic actors fall through the existing engine path; this does not
+make the old generic actor into an allegedly working dog. Current frame driver
+is goal-following only, pending full perception and combat dispatch.
+
+Important pending review/completion: physics is a native implementation of the
+referenced behavior, not yet build- or gameplay-verified. Contacts/touches, dynamic
+platform motion and authored traversal require additional integration. Full
+perception/orientation and setanimstate mapping are still unfinished. Original
+T5 state inventory is47 entries in bg_dog.cpp; some source GSC branches reference
+additional synced-melee states, so those cannot be silently mapped to a generic
+attack. No playable-dog/spawnactor claim is made. All changes remain staged.

@@ -1,0 +1,1 @@
+E20 blocker register. B-E20-01 type-code semantics BLOCKED; min action expand 0x6A9720. B-E20-02 object constructor 0xB0/0xB4 BLOCKED; min action scan .text writes. B-E20-03 state 3 0x989230/0xAC4070 BLOCKED; min action trace read primitives. B-E20-04 indirect/callback boundary BLOCKED; min action enumerate vtables from confirmed objects.

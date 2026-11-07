@@ -1,0 +1,1 @@
+E20 unified question register update. XVAL-02 authoritative baseline: total weight 206, weighted score 88.9, cognitive completeness 43.155 percent, I4 30.77 percent, interoperability NOT-OBSERVED. E20 adds no new question items; it corrects E19 interpretive evidence only.

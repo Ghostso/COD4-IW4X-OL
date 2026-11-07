@@ -1,0 +1,13 @@
+# T5 Tabun native implementation requirements — 2026-09-15
+
+Reference: plutoniummod/t5-scripts commit70689b8288e60079d48926657e670c41aab4abdf, MP/Common/maps/mp/_tabun.gsc. Original _tabun, _flare and _teargrenades downloaded under obj/reference/t5-equipment. _teargrenades is a different legacy tear_grenade path; do not use its ammo-polling heuristic for Tabun.
+
+Actual Tabun requires grenade explode(position,surface), gas-area geometry/LOS, repeated attributed damage, poison state, temporary shock/UI behavior and cleanup after exit/death. The original script uses gas radii185, height20, duration8s, damage13/tick (hardcore5). These are T5 defaults, not established C1 balance values. CoDOL selected equipment table contains tabun_gas_mp and white_phosphorus_grenade_mp, so these are within scope.
+
+Missing native methods found in current VM registry: startpoisoning, stoppoisoning, ispoisoned, dodamage. OpenBLOPS Game/Server/game_mp/g_scr_main_mp.cpp9373/9388/9452 stores/reads a real player-state poison value. Its MP ScrCmd_DoDamage4339 accepts2–8 positional arguments: damage, source, attacker, inflictor, headshot, means-of-death, flags, weapon. Supplied entity arguments are parsed as entities, not silently treated as optional undefined. Default hit location HEAD, optional zero chooses NONE. Normalize target-origin minus source; zero vector produces null direction. Destructibles have a separate radius damage consumer before G_Damage. Do not count a thin wrapper missing that branch as full support.
+
+Critical native prerequisite: current modNames has16 retained entries and no MOD_GAS. C1 obituary already has MOD_GAS, but this does not make it a valid native damage reason. Extending native damage parsing/publication and retaining the exact reason through script damage/death callbacks is required; mapping gas to explosive would change semantics.
+
+C1.exe lacks literal builtin names startpoisoning/stoppoisoning/ispoisoned/isflared but contains poison and the five weapon/grenade/fx_gas_poison_mp* effect names. Absence of names does not prove absence of equivalent state. Recover C1 effect/state producers and consumers before choosing a wire field; never copy T5 ps offsets. Poison script-only bookkeeping would not implement client presentation.
+
+Next implementation: native MOD_GAS representation and complete DoDamage dispatch; C1 poison-state mapping; original Tabun script adaptation with verified mounted assets and real explode events. Existing VM methods must be audited through their consumers, not merely registration. No gameplay edits/build/restart in this research increment.

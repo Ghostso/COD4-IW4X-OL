@@ -1,0 +1,10 @@
+import sys, importlib.util
+spec=importlib.util.spec_from_file_location("lp", r"CODOLServer\lobby_server\lobby_plain_probe.py")
+lp=importlib.util.module_from_spec(spec); sys.modules["lp"]=lp; spec.loader.exec_module(lp)
+src=bytes.fromhex("266a380d05cb3e730b1bb00eca691820cebc9a0f")
+d=lp.codec_02a0(src)
+print("codec_02A0(src620) =", d.hex())
+print("[4:20]             =", d[4:20].hex())
+print("observed p608.key  = f1e9d07399c57ea4edc304d44eacbb38")
+print("MATCH [4:20]       :", d[4:20].hex()=="f1e9d07399c57ea4edc304d44eacbb38")
+print("MATCH [0:16]       :", d[:16].hex()=="f1e9d07399c57ea4edc304d44eacbb38")

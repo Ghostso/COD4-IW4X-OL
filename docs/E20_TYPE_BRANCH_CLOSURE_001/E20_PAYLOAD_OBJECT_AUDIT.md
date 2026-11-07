@@ -1,0 +1,1 @@
+E20 payload object audit. 0x6A84E0 writes vtable VA 0xC5B0A4 (RVA 0x85B0A4, .rdata), slots 0xAA8570,0xAA85A0,0xAA83C0,0xAA82E0,0xAA88C0,0xAA8720. Nearby strings at RVA 0x85B0EC: HMAC mismatch, HMAC calculation, Bad recv counter.

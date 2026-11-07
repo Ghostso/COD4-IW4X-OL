@@ -1,0 +1,1 @@
+E20 hypotheses. H-E20-01 type 1 and 2 share 0x6A9978: CONFIRMED. H-E20-02 E19 separate-size: REFUTED. H-E20-03 HMAC object layer: STRONG INFERENCE. H-E20-04 type-code game semantics: BLOCKED. H-E20-05 bounded game-parser connection: REFUTED.

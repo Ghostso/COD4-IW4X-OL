@@ -1,0 +1,10 @@
+from pathlib import Path
+p=Path(r'D:\BaiduNetdiskDownload\使命召唤OL\CODOL_SERVER_319_20261021\docs\REVERSE_ENGINEERING_ROADMAP_20261023.md')
+s=p.read_text(encoding='utf-8')
+s=s.replace('### Phase 1：消息外层、opcode 和客户端接收链\n\n- 状态：`ACTIVE`','### Phase 1：消息外层、opcode 和客户端接收链\n\n- 状态：`DONE`（核心 handler/边界已由 Phase 2–6 产物闭环；未命名操作码保留在缺口矩阵）')
+s=s.replace('  - WeaponDef：已从 3.19 common_mp XAssetList 定位 1134 个 type-28 资产，恢复 878 个名称和 18 把 firingrange 武器参数；已闭合距离伤害、20 项 hit-location 倍率与头部伤害 API。','  - WeaponDef：已从 3.19 common_mp XAssetList 定位 1134 个 type-28 资产，恢复 890 个名称和 18 把 firingrange 武器参数；已闭合距离伤害、20 项 hit-location 倍率与头部伤害 API。最终加载布局已单独记录：六段伤害 `+0xBB4/+0xBCC`、21 项命中倍率 `+0xBF0`、hip spread `+0x810..+0x824`、ADS spread `+0xAC0`。')
+s=s.replace('  - WeaponAttach：285 个 type-43 资产、4912 条 12B 记录已解析；73 个资产含本地字符串表，3750 条引用记录保留共享槽位原始 token；scalar 覆盖 172/879。','  - WeaponAttach：285 个 type-43 资产、4912 条 12B 记录已解析；73 个资产含本地字符串表，3750 条引用记录保留共享槽位原始 token；95 个附件、135 条安全 scalar 已进入运行表，545 条 string/resource 记录仍显式 skipped。')
+s=s.replace('  - 产物：`PHASE7_COMBAT_WORLD_INVENTORY_20261023.md`、`fixtures/coop_train_clipmap_20261023.json`、`fixtures/common_mp_weapondefs_20261023.json`。','  - 产物：`PHASE7_COMBAT_WORLD_INVENTORY_20261023.md`、`INMATCH_COMPLETENESS_GAP_MATRIX_20261023.md`、`fixtures/coop_train_clipmap_20261023.json`、`fixtures/common_mp_weapondefs_20261023.json`。')
+s=s.replace('## 当前优先级\n\n1. Phase 1：定位 `CL_ParseServerMessage` 和 opcode 表\n2. Phase 2：闭合 gamestate/configstring\n3. Phase 3：闭合 snapshot codec\n4. Phase 4：绑定字段语义\n5. Phase 5：绑定 usercmd/reliable\n6. Phase 6–8：事件、战斗逻辑和实机闭环','## 当前优先级\n\n1. Phase 7：闭合命中盒、护甲/穿透、爆炸/投掷物、actor/vehicle/objective\n2. Phase 7：继续闭合 WeaponAttach 共享字符串槽与 ADS/recoil 生效公式\n3. Phase 8：按独立 run 规则完成同一 PID 的完整对局实机证据\n\n完整缺口矩阵见 `docs/INMATCH_COMPLETENESS_GAP_MATRIX_20261023.md`。')
+p.write_text(s,encoding='utf-8')
+print('updated')

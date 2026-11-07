@@ -1,0 +1,1 @@
+E20 type-branch audit. Corrected E19: type 1 jumps to 0x6A9978, type 2 falls through to 0x6A9978; both set ebx=9. Default path at 0x6A997D keeps ebx=1.
