@@ -1,25 +1,13 @@
 # COD4 / IW4X / COD OL — 逆向分析工作区
 
-本仓库收录该项目的**文档与脚本**，不含任何游戏原始资产。
+按 代码 / 文档 / 服务器 / 工具 四大类组织，不含任何游戏原始资产。
 
-## 目录结构
-
-| 路径 | 内容 |
+| 顶层 | 内容 |
 |---|---|
-| docs/overview/ | CODOL 总体性报告 |
-| docs/experiments/ | EX0xx 系列实验记录与结论 |
-| docs/battle-server/ | 自建战斗服务器相关分析 |
-| docs/baseline/ | 启动基线判定与裁定 |
-| docs/build/ | 构建风险与产物阻塞记录 |
-| docs/reports/ | 其余分析与交接报告 |
-| scripts/py/analysis/ | 分析类脚本 |
-| scripts/py/build/ | 构建类脚本 |
-| scripts/py/patch/ | 补丁类脚本 |
-| scripts/py/oneoff/ | 一次性脚本（下划线开头） |
-| scripts/py/misc/ | 其余 Python 脚本 |
-| scripts/powershell/ | PowerShell 脚本 |
-| scripts/lua/ | Lua 脚本 |
-| src/ | C/C++ 源码 |
+| code/ | 实现代码（Python 模块、C/C++ 源码） |
+| docs/ | 分析文档与报告 |
+| server/ | 自建服务器（战斗服 / 大厅 / IIPS / 鉴权）相关代码与文档 |
+| tools/ | 分析与操作工具（一次性脚本、PowerShell、Lua） |
 
 ## 说明
 
