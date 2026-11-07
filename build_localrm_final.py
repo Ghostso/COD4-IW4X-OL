@@ -1,0 +1,101 @@
+import struct
+def align(v,A):return (v+A-1)&~(-A)
+t=bytearray(b'\xb8\x78\x56\x34\x12\xc3\xc3')#GetResourceManagerII,ReleaseResourceManagerII
+r=bytearray()
+s1=b'GetResourceManagerII\x00'
+s2=b'ReleaseResourceManagerII\x00'
+r+=s1+s2
+T=0x1000
+R=0x2000
+D=0x3000
+s1v=R+0
+s2v=R+len(s1)
+f1v=T+0
+f2v=T+6
+r+=struct.pack('<IHHIILLLLLL',0,0,0,0,0,1,2,2,0,0,0)
+e=len(r)-40
+o1=e+28
+o2=e+32
+o3=e+36
+r+=struct.pack('<LL',f1v,f2v)
+r+=struct.pack('<LL',s1v,s2v)
+r+=struct.pack('<HH',0,1)
+struct.pack_into('<L',r,o1,R+e+40)
+struct.pack_into('<L',r,o2,R+e+40+8)
+struct.pack_into('<L',r,o3,R+e+40+8+8)
+d=bytearray(struct.pack('<L',0))+b'\x00'*0x410
+s=[('t',t,0x60000020),('r',r,0x40000040),('d',d,0xC0000040)]
+M=0x14c
+N=3
+TIM=0
+PTY=0
+NSY=0
+SZO=224
+C=0x2000|0x0100
+fh=struct.pack('<HHIIIHH',M,N,TIM,PTY,NSY,SZO,C)
+mg=0x10b
+ml=0
+ml2=0
+SZC=len(t)
+SZI=len(r)+len(d)
+SZU=0
+ADR=T
+BOC=T
+BOD=D
+IMG=0x10000000
+SAL=0x1000
+FAL=0x200
+MO=4
+MO2=0
+MI=0
+MI2=0
+SU=4
+SU2=0
+W32V=0
+SZI=align(len(t)+len(r)+len(d),SAL)
+SZH=0
+CH=0
+SUB=2
+DLL=0
+SSZR=0x100000
+SSZC=0x1000
+SZHR=0x100000
+SZHC=0x1000
+LF=0
+NVR=16
+oh=struct.pack('<LLLLLLLLLLLLLLLLLLLLLLLLLLLLLL',
+    mg,ml,ml2,SZC,SZI,SZU,ADR,BOC,BOD,IMG,SAL,FAL,MO,MO2,MI,MI2,SU,SU2,W32V,SZI,SZH,CH,SUB,DLL,SSZR,SSZC,SZHR,SZHC,LF,NVR)
+pe=bytearray()
+pe+=bytearray(64)
+pe[0:2]=b'MZ'
+pe+=b'PE\x00\x00'
+pe+=fh
+pe+=oh
+for n,dat,c in s:
+    pe+=struct.pack('<8sIIIIIIIHHI',(n+'\x00'*8)[:8].encode(),len(dat),0,0,0,0,0,0,0,c)
+SZH=len(pe)
+SZH=align(SZH,FAL)
+struct.pack_into('<L',pe,64+4+20+60,SZH)
+struct.pack_into('<L',pe,64+4,64+4+20)
+V=0x1000
+F=SZH
+for i,(n,dat,c) in enumerate(s):
+    o=64+4+20+SZO+i*40
+    struct.pack_into('<L',pe,o+8,V)
+    rs=align(len(dat),FAL)
+    struct.pack_into('<L',pe,o+12,rs)
+    struct.pack_into('<L',pe,o+16,F)
+    struct.pack_into('<L',pe,o+4,len(dat))
+    V=align(V+len(dat),SAL)
+    F+=rs
+struct.pack_into('<L',pe,64+4+20+56,SZI)
+for i,(n,dat,c) in enumerate(s):
+    o=64+4+20+SZO+i*40
+    p=struct.unpack_from('<L',pe,o+16)[0]
+    pe[p:p+len(dat)]=dat
+    rs=align(len(dat),FAL)
+    if rs>len(dat):
+        pe[p+len(dat):p+rs]=b'\x00'*(rs-len(dat))
+with open('LocalRM.dll','wb') as f:
+    f.write(pe)
+print('LocalRM.dll')

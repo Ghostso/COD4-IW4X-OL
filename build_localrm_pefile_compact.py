@@ -1,0 +1,137 @@
+import pefile,struct
+pe=pefile.PE()
+pe.DOS_HEADER.e_magic=0x5A4D
+pe.NT_HEADERS.Signature=0x00004550
+pe.FILE_HEADER.Machine=0x14c
+pe.FILE_HEADER.NumberOfSections=3
+pe.FILE_HEADER.TimeDateStamp=0
+pe.FILE_HEADER.PointerToSymbolTable=0
+pe.FILE_HEADER.NumberOfSymbols=0
+pe.FILE_HEADER.SizeOfOptionalHeader=224
+pe.FILE_HEADER.Characteristics=0x2000|0x0100
+pe.OPTIONAL_HEADER.Magic=0x10b
+pe.OPTIONAL_HEADER.MajorLinkerVersion=0
+pe.OPTIONAL_HEADER.MinorLinkerVersion=0
+pe.OPTIONAL_HEADER.SizeOfCode=0
+pe.OPTIONAL_HEADER.SizeOfInitializedData=0
+pe.OPTIONAL_HEADER.SizeOfUninitializedData=0
+pe.OPTIONAL_HEADER.AddressOfEntryPoint=0
+pe.OPTIONAL_HEADER.BaseOfCode=0
+pe.OPTIONAL_HEADER.BaseOfData=0
+pe.OPTIONAL_HEADER.ImageBase=0x10000000
+pe.OPTIONAL_HEADER.SectionAlignment=0x1000
+pe.OPTIONAL_HEADER.FileAlignment=0x200
+pe.OPTIONAL_HEADER.MajorOperatingSystemVersion=4
+pe.OPTIONAL_HEADER.MinorOperatingSystemVersion=0
+pe.OPTIONAL_HEADER.MajorImageVersion=0
+pe.OPTIONAL_HEADER.MinorImageVersion=0
+pe.OPTIONAL_HEADER.MajorSubsystemVersion=4
+pe.OPTIONAL_HEADER.MinorSubsystemVersion=0
+pe.OPTIONAL_HEADER.Win32VersionValue=0
+pe.OPTIONAL_HEADER.SizeOfImage=0
+pe.OPTIONAL_HEADER.SizeOfHeaders=0
+pe.OPTIONAL_HEADER.CheckSum=0
+pe.OPTIONAL_HEADER.Subsystem=2
+pe.OPTIONAL_HEADER.DllCharacteristics=0
+pe.OPTIONAL_HEADER.SizeOfStackReserve=0x100000
+pe.OPTIONAL_HEADER.SizeOfStackCommit=0x1000
+pe.OPTIONAL_HEADER.SizeOfHeapReserve=0x100000
+pe.OPTIONAL_HEADER.SizeOfHeapCommit=0x1000
+pe.OPTIONAL_HEADER.LoaderFlags=0
+pe.OPTIONAL_HEADER.NumberOfRvaAndSizes=16
+text=bytearray(b'\xb8\x78\x56\x34\x12\xc3\xc3')
+s1=b'GetResourceManagerII\x00'
+s2=b'ReleaseResourceManagerII\x00'
+rdata=bytearray()
+rdata+=s1
+rdata+=s2
+data=bytearray(struct.pack('<L',0))+b'\x00'*0x410
+sect_text=pefile.SECTION_HEADER(pe.FILE_HEADER)
+sect_text.Name=b'.text\x00\x00\x00'
+sect_text.VirtualSize=len(text)
+sect_text.VirtualAddress=0x1000
+sect_text.SizeOfRawData=len(text)
+sect_text.PointerToRawData=0
+sect_text.Characteristics=0x60000020
+pe.FILE_HEADER.NumberOfSections+=1
+pe.sections.append(sect_text)
+sect_rdata=pefile.SECTION_HEADER(pe.FILE_HEADER)
+sect_rdata.Name=b'.rdata\x00\x00'
+sect_rdata.VirtualSize=len(rdata)
+sect_rdata.VirtualAddress=0x2000
+sect_rdata.SizeOfRawData=len(rdata)
+sect_rdata.PointerToRawData=0
+sect_rdata.Characteristics=0x40000040
+pe.FILE_HEADER.NumberOfSections+=1
+pe.sections.append(sect_rdata)
+sect_data=pefile.SECTION_HEADER(pe.FILE_HEADER)
+sect_data.Name=b'.data\x00\x00'
+sect_data.VirtualSize=len(data)
+sect_data.VirtualAddress=0x3000
+sect_data.SizeOfRawData=len(data)
+sect_data.PointerToRawData=0
+sect_data.Characteristics=0xC0000040
+pe.FILE_HEADER.NumberOfSections+=1
+pe.sections.append(sect_data)
+file_align=pe.OPTIONAL_HEADER.FileAlignment
+sect_align=pe.OPTIONAL_HEADER.SectionAlignment
+size_of_headers=64+4+20+pe.FILE_HEADER.SizeOfOptionalHeader+pe.FILE_HEADER.NumberOfSections*40
+size_of_headers=(size_of_headers+file_align-1)&~(file_align-1)
+current_offset=size_of_headers
+for sect in pe.sections:
+    sect.PointerToRawData=current_offset
+    sect.SizeOfRawData=(sect.VirtualSize+file_align-1)&~(file_align-1)
+    current_offset+=sect.SizeOfRawData
+current_virtual_address=0x1000
+for sect in pe.sections:
+    sect.VirtualAddress=current_virtual_address
+    sect.VirtualSize=(sect.VirtualSize+sect_align-1)&~(sect_align-1)
+    current_virtual_address+=sect.VirtualSize
+pe.OPTIONAL_HEADER.SizeOfImage=(current_virtual_address-0x1000)
+pe.OPTIONAL_HEADER.SizeOfImage=(pe.OPTIONAL_HEADER.SizeOfImage+sect_align-1)&~(sect_align-1)
+pe.OPTIONAL_HEADER.AddressOfEntryPoint=pe.sections[0].VirtualAddress
+pe.OPTIONAL_HEADER.BaseOfCode=pe.sections[0].VirtualAddress
+pe.OPTIONAL_HEADER.BaseOfData=pe.sections[2].VirtualAddress
+pe.OPTIONAL_HEADER.SizeOfHeaders=size_of_headers
+pe.OPTIONAL_HEADER.SizeOfInitializedData=pe.sections[1].VirtualSize+pe.sections[2].VirtualSize
+pe.OPTIONAL_HEADER.SizeOfCode=pe.sections[0].VirtualSize
+pe.sections[0].set_data(text)
+pe.sections[1].set_data(rdata)
+pe.sections[2].set_data(data)
+rdata_sect=pe.sections[1]
+rdata_d=bytearray(rdata_sect.get_data())
+rdata_d+=s1
+s1v=rdata_sect.VirtualAddress+0
+s2v=rdata_sect.VirtualAddress+len(s1)
+rdata_d+=s2
+exp_dir_offset=len(rdata_dir)
+rdata_d+=struct.pack('<IHHIILLLLLL',0,0,0,0,0,1,2,2,0,0,0)
+off_funcs=exp_dir_offset+28
+off_names=exp_dir_offset+32
+off_ords=exp_dir_offset+36
+f1v=pe.sections[0].VirtualAddress+0
+f2v=pe.sections[0].VirtualAddress+6
+rdata_d+=struct.pack('<LL',f1v,f2v)
+rdata_d+=struct.pack('<LL',s1v,s2v)
+rdata_d+=struct.pack('<HH',0,1)
+struct.pack_into('<L',rdata_d,off_funcs,rdata_sect.VirtualAddress+exp_dir_offset+40)
+struct.pack_into('<L',rdata_d,off_names,rdata_sect.VirtualAddress+exp_dir_offset+40+8)
+struct.pack_into('<L',rdata_d,off_ords,rdata_sect.VirtualAddress+exp_dir_offset+40+8+8)
+rdata_sect.set_data(rdata_d)
+rdata_sect.VirtualSize=len(rdata_d)
+rdata_sect.SizeOfRawData=(len(rdata_d)+file_align-1)&~(file_align-1)
+current_virtual_address=0x1000
+for sect in pe.sections:
+    sect.VirtualAddress=current_virtual_address
+    sect.VirtualSize=(sect.VirtualSize+sect_align-1)&~(sect_align-1)
+    current_virtual_address+=sect.VirtualSize
+pe.OPTIONAL_HEADER.SizeOfImage=(current_virtual_address-0x1000)
+pe.OPTIONAL_HEADER.SizeOfImage=(pe.OPTIONAL_HEADER.SizeOfImage+sect_align-1)&~(sect_align-1)
+pe.OPTIONAL_HEADER.AddressOfEntryPoint=pe.sections[0].VirtualAddress
+pe.OPTIONAL_HEADER.BaseOfCode=pe.sections[0].VirtualAddress
+pe.OPTIONAL_HEADER.BaseOfData=pe.sections[2].VirtualAddress
+pe.OPTIONAL_HEADER.SizeOfHeaders=size_of_headers
+pe.OPTIONAL_HEADER.SizeOfInitializedData=pe.sections[1].VirtualSize+pe.sections[2].VirtualSize
+pe.OPTIONAL_HEADER.SizeOfCode=pe.sections[0].VirtualSize
+pe.write('LocalRM.dll')
+print('LocalRM.dll')

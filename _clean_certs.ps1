@@ -1,0 +1,3 @@
+﻿Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Subject -like "*CODOL*" } | ForEach-Object { Write-Output ("root " + $_.Thumbprint); Remove-Item -Path ("Cert:\LocalMachine\Root\" + $_.Thumbprint) -Force }
+Get-ChildItem Cert:\LocalMachine\My | Where-Object { $_.Subject -like "*CODOL*" -or $_.Subject -like "*formal-zone*" } | ForEach-Object { Write-Output ("my " + $_.Thumbprint); Remove-Item -Path ("Cert:\LocalMachine\My\" + $_.Thumbprint) -Force }
+Write-Output "cert-clean-done"

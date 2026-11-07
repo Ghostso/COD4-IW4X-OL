@@ -1,0 +1,51 @@
+p = r"CODOLServer\lobby3074\lsg_server.py"
+src = open(p, encoding="utf-8").read()
+
+# Replace lines 543-569 (0x89 reply) with TLV + 382 frame
+old = '''        # Build 0x89 business reply: the first decrypted byte must be 0x89
+        # so the client's dispatcher routes it to 0xBA3600
+        payload = b""
+        if objs:
+            for o in objs:
+                payload += o
+        else:
+            # Even for tasks we don't handle, include one empty 13/08 object
+            # so the client's parser sees nobj >= 1 with valid data
+            payload += bytes([0x13, 0x08]) + struct.pack("<I", 0)
+        # 32B session field must match [req+0x648] (memcmp at 0xBA1171)
+        f648_path = self.echo_file.replace("echo.txt", "field648.txt")
+        field648 = b"\\x00" * 32  # fallback
+        try:
+            f648_hex = open(f648_path, encoding="ascii").read().strip()
+            if len(f648_hex) == 64:
+                field648 = bytes.fromhex(f648_hex)
+        except (OSError, ValueError):
+            pass
+        body_89 = (bytes([0x01, 1, 0x00]) + field648 +
+                   struct.pack("<H", len(payload)) + payload +
+                   struct.pack("<I", 0))
+        rep = struct.pack("<I", len(body_89)) + body_89
+        out = wrap_85(fr["seq"], os.urandom(16), rep, aes_out, hmac_out)
+        c.sendall(out)
+        self.log("-> 0x85 reply seq=%d replyId=%d 0x89 nobj=%d len=%d"
+                 % (fr["seq"], rid, len(objs) if objs else 0, len(out)))'''
+
+new = '''        # Build TLV reply (first byte 0x01 -> 0xBA3B36 else path -> 0xB9BBC0)
+        rep = build_reply(fr["seq"], rid, inner["task"], 0, objs)
+        # Pad to 382-byte frame so client parser sees expected size
+        frame_len = 382
+        inner_len = frame_len - 2 - 4 - 16 - 8
+        plaintext = rep + b"\\x00" * (inner_len - len(rep))
+        iv = os.urandom(16)
+        ct = aes128cbc_enc(aes_out, iv, plaintext)
+        body = struct.pack("<I", fr["seq"]) + iv + ct
+        frame_wo_tag = struct.pack("<I", frame_len) + b"\\x00\\x85" + body
+        tag = hmac8(hmac_out, frame_wo_tag)
+        out = frame_wo_tag + tag
+        c.sendall(out)
+        self.log("-> 0x85 reply seq=%d replyId=%d TLV nobj=%d frame=%d"
+                 % (fr["seq"], rid, len(objs) if objs else 0, len(out)))'''
+
+src = src.replace(old, new)
+open(p, "w", encoding="utf-8", newline="").write(src)
+print("patched")
