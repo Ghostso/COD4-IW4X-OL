@@ -1,0 +1,30 @@
+# runtime artifacts
+runs/
+*.log
+*.tmp
+__pycache__/
+*.pyc
+.venv/
+
+# local assets / binaries
+*.bin
+*.ifs
+*.iwd
+*.ff
+*.zip
+*.7z
+*.rar
+
+# credentials & certs (never commit)
+*.pem
+*.key
+*.cer
+*.pfx
+*.p12
+_rsa.txt
+dwauth.ini
+player-account.json
+
+# OS
+.DS_Store
+Thumbs.db
