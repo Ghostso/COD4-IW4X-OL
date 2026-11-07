@@ -7,7 +7,9 @@
 | code/ | 实现代码（Python 模块、C/C++ 源码） |
 | docs/ | 分析文档与报告 |
 | server/ | 自建服务器（战斗服 / 大厅 / IIPS / 鉴权）相关代码与文档 |
-| tools/ | 分析与操作工具（一次性脚本、PowerShell、Lua） |
+| tools/ | 分析与操作工具 |
+
+其中 tools/py/oneoff/ 收拢全部一次性脚本（原 misc / tmp / z7 等），dis / find / test 保留独立分类。
 
 ## 说明
 
